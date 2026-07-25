@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/domain" },
+    { "path": "packages/configuration" },
+    { "path": "packages/observability" },
+    { "path": "packages/database" },
+    { "path": "packages/infrastructure" },
+    { "path": "packages/ai" },
+    { "path": "packages/testing" },
+    { "path": "modules/govos-core" },
+    { "path": "modules/ecogov" },
+    { "path": "apps/api" },
+    { "path": "apps/worker" }
+  ]
+}

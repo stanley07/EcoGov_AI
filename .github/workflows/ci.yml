@@ -1,0 +1,46 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install Monorepo Dependencies
+      run: npm ci
+
+    - name: Verify Code Formatting
+      run: npm run format:check
+
+    - name: Run ESLint Check
+      run: npm run lint
+
+    - name: Verify TypeScript Compilation
+      run: npm run typecheck
+
+    - name: Verify Architectural Boundaries
+      run: npm run architecture:check
+
+    - name: Run Test Suite
+      run: npm run test
+
+    - name: Run Workspaces Build
+      run: npm run build

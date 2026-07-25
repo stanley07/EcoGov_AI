@@ -1,0 +1,77 @@
+{
+  "forbidden": [
+    {
+      "name": "domain-cannot-depend-on-application",
+      "comment": "Domain package must not import from application package",
+      "severity": "error",
+      "from": { "path": "^packages/domain" },
+      "to": { "path": "^packages/application" }
+    },
+    {
+      "name": "domain-cannot-depend-on-infrastructure",
+      "comment": "Domain package must not import from infrastructure package",
+      "severity": "error",
+      "from": { "path": "^packages/domain" },
+      "to": { "path": "^packages/infrastructure" }
+    },
+    {
+      "name": "domain-cannot-depend-on-transport",
+      "comment": "Domain package must not import transport frameworks or external APIs",
+      "severity": "error",
+      "from": { "path": "^packages/domain" },
+      "to": { "dependencyTypes": ["npm"], "pathNot": "^(node:|$)" }
+    },
+    {
+      "name": "application-cannot-depend-on-infrastructure",
+      "comment": "Application package must not depend on concrete infrastructure implementation",
+      "severity": "error",
+      "from": { "path": "^packages/application" },
+      "to": { "path": "^packages/infrastructure" }
+    },
+    {
+      "name": "core-cannot-depend-on-modules",
+      "comment": "GovOS Core must not depend on EcoGov environmental modules",
+      "severity": "error",
+      "from": { "path": "^modules/govos-core" },
+      "to": { "path": "^modules/ecogov" }
+    },
+    {
+      "name": "routes-cannot-import-database-pool",
+      "comment": "Route handlers must not direct-import pg or database connection pools",
+      "severity": "error",
+      "from": {
+        "path": "^apps/(api|worker)/src/routes|^apps/(api|worker)/src/tasks"
+      },
+      "to": { "dependencyTypes": ["npm"], "path": "^pg$" }
+    },
+    {
+      "name": "routes-cannot-import-gemini",
+      "comment": "Route handlers must not direct-import Google GenAI SDK",
+      "severity": "error",
+      "from": {
+        "path": "^apps/(api|worker)/src/routes|^apps/(api|worker)/src/tasks"
+      },
+      "to": { "dependencyTypes": ["npm"], "path": "^@google/genai$" }
+    },
+    {
+      "name": "only-ai-adapter-can-import-gemini",
+      "comment": "Only packages/ai may import the Google GenAI SDK",
+      "severity": "error",
+      "from": { "pathNot": "^packages/ai" },
+      "to": { "dependencyTypes": ["npm"], "path": "^@google/genai$" }
+    },
+    {
+      "name": "no-deep-workspace-imports",
+      "comment": "Avoid deep internal imports between workspaces; consume only public exports",
+      "severity": "error",
+      "from": { "path": "^(apps|packages)" },
+      "to": { "path": "^packages/[^/]+/src/internal" }
+    }
+  ],
+  "options": {
+    "doNotFollow": {
+      "path": "node_modules"
+    },
+    "tsPreCompilationDeps": true
+  }
+}

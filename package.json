@@ -1,0 +1,40 @@
+{
+  "name": "govos-ai-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enterprise AI Operating System for Governments",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "modules/*"
+  ],
+  "scripts": {
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "format:write": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --build",
+    "architecture:check": "dependency-cruiser --config dependency-cruiser.json apps packages",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "build": "tsc --build && npm run build --workspaces --if-present",
+    "security:scan": "npm audit --audit-level=high",
+    "db:migrate": "npm run migrate --workspace=@govos/database",
+    "bootstrap": "npm run bootstrap --workspace=@govos/database",
+    "govos:bootstrap-platform-admin": "npm run bootstrap-platform-admin --workspace=@govos/database",
+    "ai:smoke": "ts-node --project tsconfig.base.json scripts/ai-smoke.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.8.0",
+    "dependency-cruiser": "^16.3.0",
+    "eslint": "^9.8.0",
+    "prettier": "^3.3.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.0.0-alpha.54",
+    "vitest": "^2.0.4"
+  }
+}

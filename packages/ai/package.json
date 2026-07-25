@@ -1,0 +1,22 @@
+{
+  "name": "@govos/ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@google/genai": "^2.13.0",
+    "@govos/configuration": "*",
+    "@govos/observability": "*"
+  }
+}

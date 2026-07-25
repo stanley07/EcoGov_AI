@@ -1,0 +1,33 @@
+{
+  "name": "@govos/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "migrate": "npm run build && node ./dist/cli.js",
+    "bootstrap": "npm run build && node ./dist/run-bootstrap.js",
+    "bootstrap:repair": "npm run build && node ./dist/run-repair-bootstrap.js",
+    "bootstrap-platform-admin": "npm run build && node ./dist/run-bootstrap-platform-admin.js",
+    "test:concurrency": "ts-node --project tsconfig.json src/test-concurrency.ts"
+  },
+  "dependencies": {
+    "@govos/configuration": "*",
+    "@govos/core": "*",
+    "@govos/observability": "*",
+    "argon2": "^0.40.3",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.6",
+    "ts-node": "^10.9.2"
+  }
+}

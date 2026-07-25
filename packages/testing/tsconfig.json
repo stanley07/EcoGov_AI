@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../configuration" },
+    { "path": "../observability" },
+    { "path": "../ai" },
+    { "path": "../../apps/api" },
+    { "path": "../../apps/worker" }
+  ]
+}
