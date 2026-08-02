@@ -56,6 +56,36 @@ Redacted mailbox example:
 - Database invariants after the full suite: migration 28; cross-tenant memberships 0; duplicate current assignments 0; canonical permission parity 19/19; platform mappings 0; foreign mappings 0.
 - Canonical bootstrap state remains users 0, memberships 0, invitations 0, sessions 0. NOTIFY-1 did not invent owner identity data or run the separate Gate 2 bootstrap mutation.
 
+## Post-merge constructor regression
+
+After merge commit `b6c61fba14069ba3a372788214a245dd9a139e55`, focused tests reported `TypeError: DevelopmentMailbox is not a constructor`.
+
+Investigation established:
+
+- `main` and `codex/implementation` contained identical NOTIFY-1 source files; the merge introduced no source conflict.
+- `DevelopmentMailbox` remained a named class export, its consumers remained named imports, and `packages/infrastructure/src/index.ts` retained `export * from "./development-mailbox.js"`.
+- No default/named export mismatch, circular dependency, or unresolved merge marker was present.
+- Tests and application packages resolve `@govos/infrastructure` through `packages/infrastructure/dist/index.js`.
+- The ignored `dist` tree could remain stale while the merge retained a tracked incremental `packages/infrastructure/tsconfig.tsbuildinfo` from the first parent that predated `development-mailbox.ts`. In that state the source barrel was correct but the runtime barrel did not expose a constructible class.
+
+Resolution:
+
+- `vitest.config.ts` now aliases the exact `@govos/infrastructure` workspace package to `packages/infrastructure/src/index.ts`, so tests execute the reviewed source barrel rather than ambient ignored build output.
+- `packages/infrastructure/package.json` now runs `tsc --build --force`, ensuring explicit infrastructure builds refresh the runtime barrel even when stale incremental metadata survives a branch merge.
+- No IAM, invitation, encryption, mailbox authorization, or production notification behavior changed.
+
+Regression verification:
+
+- Focused NOTIFY-1 suite: 2 files, 10/10 tests passed.
+- Full sequential suite: 146/146 suites and 305/305 tests passed in 238.1 seconds.
+- Infrastructure, API, AI, worker, and web production builds passed. The existing ignored AI output first required its known clean regeneration after a `TS5055` stale-declaration collision; no AI source was changed.
+
+Regression-fix files:
+
+- `vitest.config.ts`
+- `packages/infrastructure/package.json`
+- `docs/ecogov/NOTIFY1_EVIDENCE.md`
+
 ## Known limitations
 
 - Filesystem mode bits are best-effort on Windows; host ACLs remain authoritative.
