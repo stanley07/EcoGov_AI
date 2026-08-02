@@ -94,6 +94,12 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
 
   // Session Authentication & Tenant Extraction Hook
   app.addHook("preHandler", async (req, reply) => {
+    if (
+      req.url.startsWith("/internal/dev-mailbox") &&
+      (process.env.NODE_ENV !== "development" || process.env.DEV_MAILBOX_ENABLED !== "true")
+    ) {
+      return reply.status(404).send({ error: "Not found" });
+    }
     // Exclude public/internal-diagnostics endpoints
     if (
       req.url.startsWith("/healthz") ||
