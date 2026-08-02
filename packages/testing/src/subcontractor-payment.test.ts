@@ -104,7 +104,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
     expect(invoiceQuery.rows.length).toBe(1);
     expect(invoiceQuery.rows[0].status).toBe("unpaid");
     expect(Number(invoiceQuery.rows[0].amount_due_microunits)).toBe(500000000);
-    expect(invoiceQuery.rows[0].currency).toBe("USD");
+    expect(invoiceQuery.rows[0].currency).toBe("NGN");
 
     // Call checkout session with invalid token -> 401
     const invalidSession = await app.inject({
@@ -190,7 +190,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
       checkout_reference: checkoutSessionId,
       transaction_reference: txRef,
       amount: 500000000,
-      currency: "usd"
+      currency: "ngn"
     };
     const rawBody = JSON.stringify(webhookPayload);
     const signature = computeSignature(rawBody);
@@ -238,7 +238,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
     expect(ledgerQuery.rows.length).toBe(1);
     expect(ledgerQuery.rows[0].entry_type).toBe("credit");
     expect(Number(ledgerQuery.rows[0].amount_microunits)).toBe(500000000);
-    expect(ledgerQuery.rows[0].currency).toBe("USD");
+    expect(ledgerQuery.rows[0].currency).toBe("NGN");
 
     // Verify payment event recorded latency metrics
     const eventQuery = await pool.query(
@@ -360,7 +360,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
       checkout_reference: checkoutSessionId,
       transaction_reference: txRef,
       amount: 400000000,
-      currency: "usd"
+      currency: "ngn"
     };
     const rawBody = JSON.stringify(webhookPayload);
     const signature = computeSignature(rawBody);
@@ -411,7 +411,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
       checkout_reference: checkoutSessionId,
       transaction_reference: completedTxRef,
       amount: 500000000,
-      currency: "usd"
+      currency: "ngn"
     };
     await app.inject({
       method: "POST",
@@ -430,7 +430,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
       checkout_reference: checkoutSessionId,
       transaction_reference: completedTxRef,
       amount: 500000000,
-      currency: "usd"
+      currency: "ngn"
     };
     const rawBody = JSON.stringify(refundPayload);
     const signature = computeSignature(rawBody);
@@ -494,7 +494,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
       checkout_reference: checkoutSessionId,
       transaction_reference: protectTxRef,
       amount: 500000000,
-      currency: "usd"
+      currency: "ngn"
     };
     await app.inject({
       method: "POST",
@@ -562,7 +562,7 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
       checkout_reference: checkoutSessionId,
       transaction_reference: completedTxRef,
       amount: 500000000,
-      currency: "usd"
+      currency: "ngn"
     };
     await app.inject({
       method: "POST",

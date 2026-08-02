@@ -494,8 +494,9 @@ export class OfficerReviewService {
         
         await client.query(
           `INSERT INTO marketplace_invoice (
-            id, tenant_id, application_id, invoice_number, billing_period_start, billing_period_end, amount_due_microunits, currency, status
-          ) VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '1 year', $5, $6, 'unpaid')`,
+            id, tenant_id, application_id, invoice_number, billing_period_start, billing_period_end,
+            amount_due_microunits, currency, status, payment_reference
+          ) VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '1 year', $5, $6, 'unpaid', $4)`,
           [invoiceId, tenantId, applicationId, invoiceNumber, pricing.amountMicroUnits, pricing.currency]
         );
       }
