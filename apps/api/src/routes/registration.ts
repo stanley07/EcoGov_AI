@@ -13,6 +13,45 @@ export function registrationRoutes(
   { pool }: { pool: Pool },
   done: () => void,
 ) {
+  // Get Operational & Commercial KPIs from actual database tables
+  app.get(
+    "/facilities/kpis",
+    async (req, reply) => {
+      const user = req.user;
+      if (!user) return reply.status(401).send({ error: "Unauthorized" });
+
+      try {
+        const query = `
+          SELECT
+            (SELECT COUNT(*)::int FROM subcontractor_profile WHERE tenant_id = $1) as subcontractors,
+            (SELECT COUNT(*)::int FROM subcontractor_licence WHERE tenant_id = $1) as licences,
+            (SELECT COALESCE(SUM(amount_paid_microunits)::bigint, 0) FROM marketplace_payment WHERE tenant_id = $1 AND status = 'completed') as revenue,
+            (SELECT COUNT(DISTINCT target_id)::int FROM subcontractor_assignment WHERE tenant_id = $1) as territories,
+            (SELECT COUNT(*)::int FROM facility WHERE tenant_id = $1 AND deleted_at IS NULL) as facilities,
+            (SELECT COUNT(*)::int FROM facility_registration WHERE tenant_id = $1 AND status = 'approved') as approved_facilities,
+            (SELECT COUNT(*)::int FROM facility_registration WHERE tenant_id = $1 AND status IN ('submitted', 'officer_review')) as active_reviews
+        `;
+        const res = await pool.query(query, [user.tenantId]);
+        const row = res.rows[0];
+
+        // Convert microunits to USD
+        const revenueUsd = Number(row.revenue) / 100000000;
+
+        return reply.send({
+          subcontractors: row.subcontractors,
+          licences: row.licences,
+          revenueUsd: revenueUsd,
+          territories: row.territories,
+          facilities: row.facilities,
+          approvedFacilities: row.approved_facilities,
+          activeReviews: row.active_reviews
+        });
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message });
+      }
+    }
+  );
+
   // Submit Facility Registration (starts workflow)
   app.post(
     "/facilities/:id/register",
@@ -201,11 +240,11 @@ export function registrationRoutes(
 
       const { id } = req.params as { id: string };
 
-      // Fetch workflow instance (support lookup by instance id OR facility id)
       const wfQuery = `
-      SELECT id, status
-      FROM workflow_instance
-      WHERE tenant_id = $1 AND (id = $2 OR entity_id = $2)
+      SELECT w.id, w.status
+      FROM workflow_instance w
+      LEFT JOIN facility_registration r ON r.id = w.entity_id AND w.entity_type = 'facility_registration'
+      WHERE w.tenant_id = $1 AND (w.id = $2 OR w.entity_id = $2 OR r.facility_id = $2)
       LIMIT 1
     `;
       const wfRes = await pool.query(wfQuery, [user.tenantId, id]);
@@ -231,7 +270,8 @@ export function registrationRoutes(
 
       // Fetch AI reviews using resolved workflow_instance id
       const aiQuery = `
-      SELECT id, agent_name as "agentName", response_payload as "responsePayload", started_at as "createdAt"
+      SELECT id, agent_name as "agentName", response_payload as "responsePayload", started_at as "createdAt",
+             model_provider as "modelProvider", model_name as "modelName", execution_status as "executionStatus"
       FROM ai_execution
       WHERE tenant_id = $1 AND workflow_instance_id = $2
       ORDER BY started_at DESC

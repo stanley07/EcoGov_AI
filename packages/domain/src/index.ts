@@ -213,3 +213,243 @@ export interface AuditLog {
   correlationId: string;
   createdAt: string;
 }
+
+// --- Milestone PA-4 Subcontractor Marketplace Domain Entities ---
+
+export type SubcontractorApplicationStatus =
+  | "draft"
+  | "submitted"
+  | "screening_queued"
+  | "screening_in_progress"
+  | "screening_failed"
+  | "awaiting_officer_review"
+  | "more_information_required"
+  | "approved"
+  | "rejected"
+  | "invoice_pending"
+  | "payment_pending"
+  | "payment_confirmed"
+  | "licence_issued"
+  | "withdrawn"
+  | "expired";
+
+export interface SubcontractorApplication {
+  id: string;
+  tenantId: string;
+  businessName: string;
+  registrationNumber: string;
+  taxIdentifier: string;
+  contactEmail: string;
+  contactPhone: string;
+  operatingAddress: string;
+  experienceYears: number;
+  licenseType: string;
+  accessTokenHash: string;
+  status: SubcontractorApplicationStatus;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubcontractorApplicationDocument {
+  id: string;
+  tenantId: string;
+  applicationId: string;
+  documentType: string;
+  storageKey: string;
+  contentHash: string;
+  mimeType: string;
+  sizeBytes: number;
+  scanStatus: "pending" | "passed" | "failed";
+  verificationStatus: "pending" | "verified" | "rejected";
+  uploadedAt: string;
+  supersededAt?: string;
+}
+
+export interface SubcontractorApplicationEvent {
+  id: string;
+  tenantId: string;
+  applicationId: string;
+  actorType: "user" | "system" | "ai" | "payment_provider";
+  actorId?: string;
+  previousState?: SubcontractorApplicationStatus;
+  newState: SubcontractorApplicationStatus;
+  reason?: string;
+  correlationId: string;
+  createdAt: string;
+}
+
+export interface SubcontractorScreeningResult {
+  id: string;
+  tenantId: string;
+  applicationId: string;
+  aiExecutionId: string;
+  screeningPolicyVersion: string;
+  outputContractVersionId?: string;
+  inputSnapshotHash: string;
+  screeningStatus: "completed" | "failed";
+  applicationVersion: number;
+  recommendation?: "recommended" | "needs_review" | "high_risk";
+  score?: number;
+  criteria?: Record<string, any>;
+  riskFlags?: string[];
+  modelVersion?: string;
+  screenedAt: string;
+}
+
+export interface SubcontractorProfile {
+  id: string;
+  tenantId: string;
+  applicationId?: string;
+  businessName: string;
+  status: "active" | "under_review" | "restricted" | "suspended" | "revoked" | "archived";
+  performanceScore: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubcontractorLicence {
+  id: string;
+  tenantId: string;
+  subcontractorId: string;
+  invoiceId: string;
+  licenceNumber: string;
+  verificationCode: string;
+  licenceType: string;
+  status: "pending" | "active" | "expired" | "suspended" | "revoked" | "cancelled";
+  issuedAt: string;
+  validFrom: string;
+  expiresAt: string;
+  revokedAt?: string;
+  revocationReason?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  workerIssueDuration?: number;
+}
+
+export interface SubcontractorAssignment {
+  id: string;
+  tenantId: string;
+  subcontractorId: string;
+  assignmentType: "lga" | "cluster";
+  lgaId?: string;
+  clusterId?: string;
+  status: "active" | "terminated";
+  startsAt: string;
+  endsAt?: string;
+  assignedBy: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubcontractorQualityAudit {
+  id: string;
+  tenantId: string;
+  subcontractorId: string;
+  auditorType: "officer" | "ai" | "system";
+  auditorId?: string;
+  aiExecutionId?: string;
+  auditType: string;
+  associatedResourceType?: string;
+  associatedResourceId?: string;
+  score: number;
+  status: "draft" | "completed" | "disputed" | "confirmed" | "overturned";
+  createdAt: string;
+}
+
+export interface SubcontractorQualityFinding {
+  id: string;
+  tenantId: string;
+  auditId: string;
+  findingCode: string;
+  severity: "low" | "medium" | "high" | "critical";
+  evidenceReferences: Record<string, any>;
+  description: string;
+  createdAt: string;
+}
+
+export interface SubcontractorEnforcementAction {
+  id: string;
+  tenantId: string;
+  subcontractorId: string;
+  actionType: "warning" | "restriction" | "suspension" | "revocation";
+  reason: string;
+  initiatedBy: string;
+  status: "proposed" | "active" | "stayed" | "overturned" | "resolved" | "expired";
+  createdAt: string;
+}
+
+export interface SubcontractorAppeal {
+  id: string;
+  tenantId: string;
+  enforcementActionId: string;
+  subcontractorJustification: string;
+  status: "pending" | "approved" | "rejected";
+  officerDecision?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  createdAt: string;
+}
+
+export interface MarketplaceInvoice {
+  id: string;
+  tenantId: string;
+  applicationId: string;
+  invoiceNumber: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  amountDueMicrounits: string;
+  currency: string;
+  status: "unpaid" | "pending" | "paid" | "void" | "expired" | "refunded" | "partially_refunded";
+  version: number;
+  createdAt: string;
+}
+
+export interface MarketplacePayment {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  provider: string;
+  providerCheckoutReference: string;
+  providerTransactionReference?: string;
+  amountPaidMicrounits: string;
+  currency: string;
+  status: "created" | "pending" | "succeeded" | "failed" | "cancelled" | "refunded" | "partially_refunded" | "reversed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MarketplacePaymentEvent {
+  id: string;
+  tenantId?: string;
+  webhookEventId: string;
+  provider: string;
+  payloadHash: string;
+  eventType: string;
+  providerCreatedAt?: string;
+  signatureVerifiedAt: string;
+  processingStatus: "received" | "verified" | "processing" | "processed" | "failed" | "ignored";
+  processingAttempts: number;
+  processedAt?: string;
+  lastErrorCode?: string;
+  lastErrorMessageRedacted?: string;
+  sanitizedPayload: Record<string, any>;
+  receivedAt: string;
+}
+
+export interface MarketplaceRevenueLedger {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  paymentId: string;
+  entryReference: string;
+  amountMicrounits: string;
+  currency: string;
+  entryType: "credit" | "debit" | "refund" | "chargeback" | "adjustment";
+  occurredAt: string;
+  createdAt: string;
+}
+

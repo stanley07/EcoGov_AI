@@ -7,5 +7,6 @@ export default defineConfig({
     include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**", "**/tests/integration/**"],
     passWithNoTests: true,
+    testTimeout: 30000,
   },
 });

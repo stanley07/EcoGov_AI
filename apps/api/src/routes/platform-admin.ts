@@ -5,6 +5,13 @@ import {
   hasPlatformPermission,
   TenantProvisioningService,
 } from "@govos/core";
+import registryReadRoutes from "./platform-admin/registry-read.js";
+import registryCommandsRoutes from "./platform-admin/registry-commands.js";
+import executionsRoutes from "./platform-admin/executions.js";
+import usageRoutes from "./platform-admin/usage.js";
+import operationalHealthRoutes from "./platform-admin/operational-health.js";
+import tenantsRoutes from "./platform-admin/tenants.js";
+import auditRoutes from "./platform-admin/audit.js";
 
 // Platform Authorization & MFA Gate Hook
 function requirePlatformAccess(pool: Pool, permission: PlatformPermission) {
@@ -318,4 +325,113 @@ export default async function platformAdminRoutes(app: FastifyInstance, { pool }
       return reply.send(result.rows);
     }
   );
+
+  // 9. Get Platform Agent Observability Metrics
+  app.get(
+    "/platform-admin/agent-observability",
+    async (req, reply) => {
+      const user = req.user;
+      if (!user) {
+        return reply.status(401).send({ error: "Unauthorized: Session credentials missing" });
+      }
+
+      // Check Platform Permissions
+      const isSuperAdmin = await hasPlatformPermission(pool, user.userId, PlatformPermission.AUDIT_READ);
+
+      let targetTenantId: string | null = null;
+      const tenantParam = (req.query as any).tenantId;
+
+      if (isSuperAdmin) {
+        targetTenantId = tenantParam || null;
+      } else {
+        targetTenantId = user.tenantId;
+        if (tenantParam && tenantParam !== user.tenantId) {
+          return reply.status(403).send({ error: "Forbidden: Cannot access other tenant's metrics" });
+        }
+      }
+
+      const limit = parseInt((req.query as any).limit || "10", 10);
+      const offset = parseInt((req.query as any).offset || "0", 10);
+      const startDate = (req.query as any).startDate;
+      const endDate = (req.query as any).endDate;
+
+      const whereClauses: string[] = [];
+      const queryParams: any[] = [];
+
+      if (targetTenantId) {
+        queryParams.push(targetTenantId);
+        whereClauses.push(`tenant_id = $${queryParams.length}`);
+      }
+
+      if (startDate) {
+        queryParams.push(new Date(startDate));
+        whereClauses.push(`started_at >= $${queryParams.length}`);
+      }
+
+      if (endDate) {
+        queryParams.push(new Date(endDate));
+        whereClauses.push(`started_at <= $${queryParams.length}`);
+      }
+
+      const whereStr = whereClauses.length > 0 ? " WHERE " + whereClauses.join(" AND ") : "";
+
+      // 1. Get Aggregates
+      const aggQuery = `
+        SELECT 
+          COUNT(*)::int as total_executions,
+          COUNT(CASE WHEN execution_status = 'succeeded' THEN 1 END)::int as succeeded_count,
+          COUNT(CASE WHEN execution_status = 'failed' THEN 1 END)::int as failed_count,
+          COALESCE(SUM(token_input), 0)::int as total_input_tokens,
+          COALESCE(SUM(token_output), 0)::int as total_output_tokens,
+          COALESCE(SUM(estimated_cost_minor_units), 0)::int as total_cost_minor_units
+        FROM ai_execution
+        ${whereStr}
+      `;
+      const aggRes = await pool.query(aggQuery, queryParams);
+      const metrics = aggRes.rows[0];
+
+      // 2. Get Paginated List
+      const listParams = [...queryParams];
+      listParams.push(limit);
+      const limitIndex = listParams.length;
+      listParams.push(offset);
+      const offsetIndex = listParams.length;
+
+      const listQuery = `
+        SELECT id, tenant_id, agent_name, execution_status, current_state, started_at, completed_at, token_input, token_output, estimated_cost_minor_units
+        FROM ai_execution
+        ${whereStr}
+        ORDER BY started_at DESC
+        LIMIT $${limitIndex} OFFSET $${offsetIndex}
+      `;
+      const listRes = await pool.query(listQuery, listParams);
+
+      return reply.status(200).send({
+        tenantId: targetTenantId,
+        metrics: {
+          totalExecutions: metrics.total_executions,
+          succeededCount: metrics.succeeded_count,
+          failedCount: metrics.failed_count,
+          totalInputTokens: metrics.total_input_tokens,
+          totalOutputTokens: metrics.total_output_tokens,
+          totalCostMinorUnits: metrics.total_cost_minor_units,
+        },
+        pagination: {
+          limit,
+          offset,
+          total: metrics.total_executions,
+        },
+        items: listRes.rows,
+      });
+    }
+  );
+
+  // Register versioned platform-admin sub-routers
+  void app.register(registryReadRoutes, { pool });
+  void app.register(registryCommandsRoutes, { pool });
+  void app.register(executionsRoutes, { pool });
+  void app.register(usageRoutes, { pool });
+  void app.register(operationalHealthRoutes, { pool });
+  void app.register(tenantsRoutes, { pool });
+  void app.register(auditRoutes, { pool });
 }

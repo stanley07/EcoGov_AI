@@ -333,25 +333,21 @@ export function workbenchRoutes(
           [user.tenantId, id]
         );
       } else {
-        // Try registration-linked workflow first
+        // Try registration-linked workflow first (matching registrationId OR facilityId)
         instanceRes = await pool.query(
-          "SELECT id FROM workflow_instance WHERE tenant_id = $1 AND entity_id = $2 AND entity_type = 'facility_registration'",
+          `SELECT w.id
+           FROM workflow_instance w
+           LEFT JOIN facility_registration r ON r.id = w.entity_id AND w.entity_type = 'facility_registration'
+           WHERE w.tenant_id = $1 AND (w.entity_id = $2 OR r.facility_id = $2)`,
           [user.tenantId, id]
         );
 
         // Fallback to legacy facility-linked workflow
         if (instanceRes.rows.length === 0) {
-          const regRes = await pool.query(
-            "SELECT facility_id FROM facility_registration WHERE tenant_id = $1 AND id = $2",
+          instanceRes = await pool.query(
+            "SELECT id FROM workflow_instance WHERE tenant_id = $1 AND entity_id = $2 AND entity_type = 'facility'",
             [user.tenantId, id]
           );
-          if (regRes.rows.length > 0) {
-            const facilityId = regRes.rows[0].facility_id;
-            instanceRes = await pool.query(
-              "SELECT id FROM workflow_instance WHERE tenant_id = $1 AND entity_id = $2 AND entity_type = 'facility'",
-              [user.tenantId, facilityId]
-            );
-          }
         }
       }
 

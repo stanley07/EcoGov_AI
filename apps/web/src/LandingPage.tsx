@@ -340,6 +340,93 @@ export function LandingPage({
           </button>
         </div>
 
+        {/* Subcontractor Marketplace Onboarding Panel */}
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
+            padding: "24px 30px",
+            maxWidth: "750px",
+            width: "100%",
+            margin: "0 auto 40px auto",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+            textAlign: "left"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+            <span style={{ fontSize: "1.5rem" }}>💼</span>
+            <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "#1e293b" }}>
+              Subcontractor Onboarding & Marketplace
+            </h3>
+          </div>
+          <p style={{ margin: "0 0 20px 0", fontSize: "0.9rem", color: "#64748b", lineHeight: 1.5 }}>
+            Apply for waste collection or environmental consultant licences. Start a new application, resume a saved draft, or check your verification status.
+          </p>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <a
+              href="#marketplace/apply"
+              style={{
+                flex: 1,
+                minWidth: "160px",
+                padding: "12px 18px",
+                background: "#16a34a",
+                color: "#ffffff",
+                borderRadius: "6px",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                textDecoration: "none",
+                textAlign: "center",
+                transition: "background 0.2s"
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#15803d")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "#16a34a")}
+            >
+              🚀 Start Application
+            </a>
+            <a
+              href="#marketplace/apply"
+              style={{
+                flex: 1,
+                minWidth: "160px",
+                padding: "12px 18px",
+                background: "#1e3a8a",
+                color: "#ffffff",
+                borderRadius: "6px",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                textDecoration: "none",
+                textAlign: "center",
+                transition: "background 0.2s"
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#1e40af")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "#1e3a8a")}
+            >
+              📝 Continue Saved Draft
+            </a>
+            <a
+              href="#marketplace/status"
+              style={{
+                flex: 1,
+                minWidth: "160px",
+                padding: "12px 18px",
+                background: "#64748b",
+                color: "#ffffff",
+                borderRadius: "6px",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                textDecoration: "none",
+                textAlign: "center",
+                transition: "background 0.2s"
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#475569")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "#64748b")}
+            >
+              🔍 Check Status
+            </a>
+          </div>
+        </div>
+
         {/* Secondary Actions */}
         <div
           style={{
@@ -371,6 +458,30 @@ export function LandingPage({
           >
             🔑 Account Sign In
           </button>
+
+          <span aria-hidden="true">•</span>
+
+          <a
+            href="#marketplace/apply"
+            style={{
+              color: "#16a34a",
+              textDecoration: "none",
+            }}
+          >
+            💼 Apply as Subcontractor
+          </a>
+
+          <span aria-hidden="true">•</span>
+
+          <a
+            href="#marketplace/status"
+            style={{
+              color: "#64748b",
+              textDecoration: "none",
+            }}
+          >
+            🔍 Subcontractor Status
+          </a>
 
           <span aria-hidden="true">•</span>
 

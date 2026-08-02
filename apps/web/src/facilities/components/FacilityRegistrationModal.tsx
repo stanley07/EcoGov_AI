@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FacilityRegistrationForm } from "./FacilityRegistrationForm.js";
-import { useFacilityRegistration } from "../hooks/useFacilityRegistration.js";
 
 interface FacilityRegistrationModalProps {
   onClose: () => void;
@@ -8,6 +7,8 @@ interface FacilityRegistrationModalProps {
   organizations: Array<{ id: string; name: string }>;
   token: string;
   triggerButtonRef: React.RefObject<HTMLButtonElement | null>;
+  isOfficer: boolean;
+  onViewFacility?: (facilityId: string) => void;
 }
 
 export function FacilityRegistrationModal({
@@ -16,13 +17,11 @@ export function FacilityRegistrationModal({
   organizations,
   token,
   triggerButtonRef,
+  isOfficer,
+  onViewFacility,
 }: FacilityRegistrationModalProps) {
-  const { register, loading, error } = useFacilityRegistration();
   const [successInfo, setSuccessInfo] = useState<{ referenceNumber: string } | null>(null);
   
-  // Create a unique clientSubmissionId on mount to handle request idempotency on retry
-  const clientSubmissionIdRef = useRef(`sub-${Math.random().toString(36).substring(2)}-${Date.now()}`);
-
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -74,20 +73,6 @@ export function FacilityRegistrationModal({
       }
     };
   }, [onClose, triggerButtonRef]);
-
-  const handleSubmit = async (formData: any) => {
-    try {
-      const payload = {
-        ...formData,
-        clientSubmissionId: clientSubmissionIdRef.current,
-      };
-      const res = await register(payload, token);
-      setSuccessInfo({ referenceNumber: res.referenceNumber });
-      onSuccess();
-    } catch (err) {
-      // Handled by hook
-    }
-  };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -152,12 +137,6 @@ export function FacilityRegistrationModal({
           </button>
         </div>
 
-        {error && (
-          <div style={{ background: "#fef2f2", color: "#ef4444", padding: "12px", borderRadius: "6px", marginBottom: "16px", fontSize: "0.9rem" }}>
-            ⚠️ {error}
-          </div>
-        )}
-
         {successInfo ? (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: "3rem", marginBottom: "12px" }}>🎉</div>
@@ -188,8 +167,17 @@ export function FacilityRegistrationModal({
         ) : (
           <FacilityRegistrationForm
             organizations={organizations}
-            onSubmit={handleSubmit}
-            loading={loading}
+            token={token}
+            isOfficer={isOfficer}
+            onSuccess={(referenceNumber) => {
+              setSuccessInfo({ referenceNumber });
+              onSuccess();
+            }}
+            onCancel={onClose}
+            onViewFacility={(facilityId) => {
+              onClose();
+              if (onViewFacility) onViewFacility(facilityId);
+            }}
           />
         )}
       </div>

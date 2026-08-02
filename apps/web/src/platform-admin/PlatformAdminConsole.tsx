@@ -1,4 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { TenantsTab } from "./tenants/TenantsTab.js";
+import { RegistryTab } from "./registry/RegistryTab.js";
+import { ExecutionsTab } from "./executions/ExecutionsTab.js";
+import { UsageTab } from "./usage/UsageTab.js";
+import { HealthTab } from "./health/HealthTab.js";
+import { AuditTab } from "./audit/AuditTab.js";
 
 const API_BASE_URL = "http://localhost:8080";
 
@@ -15,17 +21,8 @@ interface Tenant {
   sessionVersion: number;
   version: number;
   createdAt: string;
-}
-
-interface AuditEvent {
-  id: string;
-  tenantId: string;
-  userId: string;
-  action: string;
-  resource: string;
-  result: string;
-  context: any;
-  createdAt: string;
+  dailyCostLimitMicrounits?: string;
+  concurrentExecutionLimit?: number;
 }
 
 interface Stats {
@@ -35,15 +32,48 @@ interface Stats {
   pendingInvitations: number;
 }
 
+type TabType = "tenants" | "registry" | "executions" | "usage" | "health" | "audit";
+
 export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
+  const savedUser = localStorage.getItem("govos_user")
+    ? JSON.parse(localStorage.getItem("govos_user")!)
+    : null;
+
+  if (!savedUser || savedUser.tenantId !== "00000000-0000-0000-0000-000000000000") {
+    return (
+      <div
+        style={{
+          background: "#450a0a",
+          border: "1px solid #7f1d1d",
+          color: "#fca5a5",
+          padding: "30px",
+          borderRadius: "12px",
+          textAlign: "center",
+          maxWidth: "600px",
+          margin: "40px auto"
+        }}
+      >
+        <h2 style={{ margin: "0 0 10px 0" }}>⛔ Access Denied</h2>
+        <p style={{ margin: 0 }}>You do not have the required administrative permissions to access the Platform Control Plane.</p>
+      </div>
+    );
+  }
+
+  const [activeSubTab, setActiveSubTab] = useState<TabType>(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (["tenants", "registry", "executions", "usage", "health", "audit"].includes(hash)) {
+      return hash as TabType;
+    }
+    return "tenants";
+  });
+
   const [stats, setStats] = useState<Stats>({
     totalTenants: 0,
     activeTenants: 0,
     suspendedTenants: 0,
-    pendingInvitations: 0,
+    pendingInvitations: 0
   });
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -66,23 +96,17 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [statsRes, tenantsRes, auditRes] = await Promise.all([
+      const [statsRes, tenantsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/platform-admin/statistics`, { headers }),
-        fetch(`${API_BASE_URL}/platform-admin/tenants`, { headers }),
-        fetch(`${API_BASE_URL}/platform-admin/audit-events`, { headers }),
+        fetch(`${API_BASE_URL}/platform-admin/tenants`, { headers })
       ]);
 
-      if (!statsRes.ok || !tenantsRes.ok || !auditRes.ok) {
+      if (!statsRes.ok || !tenantsRes.ok) {
         throw new Error("Failed to fetch administrative platform console data");
       }
 
-      const statsData = await statsRes.json();
-      const tenantsData = await tenantsRes.json();
-      const auditData = await auditRes.json();
-
-      setStats(statsData);
-      setTenants(tenantsData);
-      setAuditEvents(auditData);
+      setStats(await statsRes.json());
+      setTenants(await tenantsRes.json());
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -94,40 +118,9 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
     fetchConsoleData();
   }, [token]);
 
-  const handleSuspend = async (tenantId: string) => {
-    if (!confirm("Are you sure you want to suspend this government tenant? All active user sessions will be invalidated immediately.")) {
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE_URL}/platform-admin/tenants/${tenantId}/suspend`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to suspend tenant");
-      }
-      fetchConsoleData();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const handleReactivate = async (tenantId: string) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/platform-admin/tenants/${tenantId}/reactivate`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to reactivate tenant");
-      }
-      fetchConsoleData();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
+  useEffect(() => {
+    window.location.hash = activeSubTab;
+  }, [activeSubTab]);
 
   const handleProvision = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,15 +134,15 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          "Idempotency-Key": idempotencyKey,
+          "Idempotency-Key": idempotencyKey
         },
         body: JSON.stringify({
           name: tenantName,
           slug: tenantSlug,
           type: tenantType,
           adminName,
-          adminEmail,
-        }),
+          adminEmail
+        })
       });
 
       const data = await res.json();
@@ -189,8 +182,17 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
     setTenantSlug(slug);
   };
 
+  const tabs: { type: TabType; label: string; icon: string }[] = [
+    { type: "tenants", label: "Tenants Management", icon: "🏢" },
+    { type: "registry", label: "Registry Management", icon: "📋" },
+    { type: "executions", label: "Execution Inspection", icon: "🔍" },
+    { type: "usage", label: "Cost & Usage", icon: "📊" },
+    { type: "health", label: "Operational Health", icon: "📡" },
+    { type: "audit", label: "Audit Trails", icon: "📜" }
+  ];
+
   return (
-    <div style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto", display: "grid", gap: "30px" }}>
+    <div style={{ display: "grid", gap: "25px", maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
@@ -198,34 +200,9 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
             🛡️ GovOS Platform Control Plane
           </h1>
           <p style={{ color: "#94a3b8", marginTop: "6px", fontSize: "1.05rem" }}>
-            Multi-tenant Government Operations Security & Provisioning Console
+            Security & Administration operational control center
           </p>
         </div>
-        <button
-          onClick={openWizard}
-          style={{
-            background: "linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            padding: "12px 24px",
-            fontWeight: "bold",
-            fontSize: "0.95rem",
-            cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
-            transition: "all 0.2s",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = "translateY(-1px)";
-            e.currentTarget.style.boxShadow = "0 6px 16px rgba(2, 132, 199, 0.4)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "0 4px 12px rgba(2, 132, 199, 0.3)";
-          }}
-        >
-          + Provision Government Tenant
-        </button>
       </div>
 
       {error && (
@@ -234,174 +211,80 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
         </div>
       )}
 
-      {/* Metrics Summary */}
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
-        {[
-          { label: "Total Tenants", val: stats.totalTenants, color: "#38bdf8" },
-          { label: "Active Tenants", val: stats.activeTenants, color: "#34d399" },
-          { label: "Suspended Tenants", val: stats.suspendedTenants, color: "#f87171" },
-          { label: "Pending Invitations", val: stats.pendingInvitations, color: "#fbbf24" },
-        ].map((c, i) => (
-          <div
-            key={i}
+      {/* Tabs navigation bar */}
+      <div
+        role="tablist"
+        aria-label="Platform Admin Console Tabs"
+        style={{
+          display: "flex",
+          borderBottom: "1px solid #334155",
+          gap: "5px",
+          paddingBottom: "1px"
+        }}
+      >
+        {tabs.map(tab => (
+          <button
+            key={tab.type}
+            role="tab"
+            aria-selected={activeSubTab === tab.type}
+            aria-controls={`panel-${tab.type}`}
+            id={`tab-${tab.type}`}
+            tabIndex={activeSubTab === tab.type ? 0 : -1}
+            onClick={() => setActiveSubTab(tab.type)}
             style={{
-              background: "rgba(30, 41, 59, 0.6)",
-              backdropFilter: "blur(12px)",
-              padding: "24px",
-              borderRadius: "12px",
-              border: "1px solid #334155",
+              padding: "12px 20px",
+              background: activeSubTab === tab.type ? "#1e293b" : "transparent",
+              border: "none",
+              borderBottom: activeSubTab === tab.type ? "2px solid #38bdf8" : "2px solid transparent",
+              color: activeSubTab === tab.type ? "#38bdf8" : "#94a3b8",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "0.95rem",
+              transition: "all 0.2s",
+              borderRadius: "6px 6px 0 0",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
             }}
           >
-            <h3 style={{ margin: 0, color: "#94a3b8", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {c.label}
-            </h3>
-            <span style={{ fontSize: "2.8rem", fontWeight: 800, color: c.color, display: "block", marginTop: "10px", lineHeight: "1" }}>
-              {loading ? "..." : c.val}
-            </span>
-          </div>
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
         ))}
-      </section>
-
-      {/* Tenants Table */}
-      <div
-        style={{
-          background: "#1e293b",
-          borderRadius: "12px",
-          border: "1px solid #334155",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "20px", borderBottom: "1px solid #334155" }}>
-          <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#f8fafc" }}>🏢 Government Tenants</h2>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-            <thead>
-              <tr style={{ background: "#0f172a", color: "#94a3b8", borderBottom: "1px solid #334155" }}>
-                <th style={{ padding: "15px 20px" }}>Tenant Name</th>
-                <th style={{ padding: "15px 20px" }}>Slug / Code</th>
-                <th style={{ padding: "15px 20px" }}>Type</th>
-                <th style={{ padding: "15px 20px" }}>Status</th>
-                <th style={{ padding: "15px 20px" }}>Created At</th>
-                <th style={{ padding: "15px 20px" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && tenants.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-                    Loading tenants database...
-                  </td>
-                </tr>
-              ) : tenants.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-                    No government tenants provisioned yet.
-                  </td>
-                </tr>
-              ) : (
-                tenants.map((t) => (
-                  <tr key={t.id} style={{ borderBottom: "1px solid #334155", background: t.status === "suspended" ? "#181f30" : "transparent" }}>
-                    <td style={{ padding: "15px 20px", fontWeight: "bold" }}>{t.name}</td>
-                    <td style={{ padding: "15px 20px" }}><code style={{ color: "#38bdf8" }}>{t.slug}</code></td>
-                    <td style={{ padding: "15px 20px" }}>
-                      <span style={{ textTransform: "capitalize", background: "#334155", padding: "3px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>
-                        {t.type}
-                      </span>
-                    </td>
-                    <td style={{ padding: "15px 20px" }}>
-                      <span
-                        style={{
-                          color: t.status === "active" ? "#34d399" : "#f87171",
-                          fontWeight: "bold",
-                          textTransform: "uppercase",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        {t.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: "15px 20px", color: "#94a3b8" }}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                    <td style={{ padding: "15px 20px" }}>
-                      {t.status === "active" ? (
-                        <button
-                          onClick={() => handleSuspend(t.id)}
-                          style={{
-                            background: "#7f1d1d",
-                            color: "#fca5a5",
-                            border: "1px solid #991b1b",
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            fontSize: "0.85rem",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Suspend
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleReactivate(t.id)}
-                          style={{
-                            background: "#064e3b",
-                            color: "#a7f3d0",
-                            border: "1px solid #065f46",
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            fontSize: "0.85rem",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Reactivate
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
 
-      {/* Audit Log Timeline */}
+      {/* Tab Panels */}
       <div
-        style={{
-          background: "#1e293b",
-          borderRadius: "12px",
-          border: "1px solid #334155",
-          padding: "24px",
-        }}
+        role="tabpanel"
+        id={`panel-${activeSubTab}`}
+        aria-labelledby={`tab-${activeSubTab}`}
+        style={{ minHeight: "400px" }}
       >
-        <h2 style={{ margin: "0 0 20px", fontSize: "1.25rem", color: "#f8fafc" }}>📜 Platform Audit History</h2>
-        <div style={{ display: "grid", gap: "15px", maxHeight: "300px", overflowY: "auto", paddingRight: "10px" }}>
-          {auditEvents.length === 0 ? (
-            <p style={{ color: "#64748b", margin: 0 }}>No audit trails recorded yet.</p>
-          ) : (
-            auditEvents.map((event) => (
-              <div
-                key={event.id}
-                style={{
-                  background: "#0f172a",
-                  padding: "15px",
-                  borderRadius: "8px",
-                  border: "1px solid #334155",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <strong style={{ color: "#38bdf8" }}>{event.action}</strong>
-                  <span style={{ color: "#64748b", margin: "0 10px" }}>|</span>
-                  <span style={{ color: "#cbd5e1" }}>{event.resource}</span>
-                </div>
-                <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
-                  {new Date(event.createdAt).toLocaleString()}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {activeSubTab === "tenants" && (
+          <TenantsTab
+            token={token}
+            stats={stats}
+            tenants={tenants}
+            loading={loading}
+            onRefresh={fetchConsoleData}
+            openWizard={openWizard}
+          />
+        )}
+        {activeSubTab === "registry" && (
+          <RegistryTab token={token} />
+        )}
+        {activeSubTab === "executions" && (
+          <ExecutionsTab token={token} />
+        )}
+        {activeSubTab === "usage" && (
+          <UsageTab token={token} />
+        )}
+        {activeSubTab === "health" && (
+          <HealthTab token={token} />
+        )}
+        {activeSubTab === "audit" && (
+          <AuditTab token={token} />
+        )}
       </div>
 
       {/* Provisioning Wizard Modal */}
@@ -418,7 +301,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
             alignItems: "center",
             justifyContent: "center",
             zIndex: 999,
-            padding: "20px",
+            padding: "20px"
           }}
         >
           <div
@@ -429,7 +312,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
               width: "100%",
               maxWidth: "550px",
               boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
-              overflow: "hidden",
+              overflow: "hidden"
             }}
           >
             {/* Modal Header */}
@@ -439,7 +322,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                 borderBottom: "1px solid #334155",
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
+                alignItems: "center"
               }}
             >
               <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#f8fafc" }}>
@@ -452,7 +335,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                   border: "none",
                   color: "#94a3b8",
                   fontSize: "1.4rem",
-                  cursor: "pointer",
+                  cursor: "pointer"
                 }}
               >
                 &times;
@@ -470,7 +353,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                       flex: 1,
                       height: "4px",
                       background: wizardStep >= step ? "#38bdf8" : "#334155",
-                      borderRadius: "2px",
+                      borderRadius: "2px"
                     }}
                   />
                 ))}
@@ -511,7 +394,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         border: "1px solid #334155",
                         borderRadius: "6px",
                         color: "white",
-                        boxSizing: "border-box",
+                        boxSizing: "border-box"
                       }}
                       required
                     />
@@ -533,7 +416,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         border: "1px solid #334155",
                         borderRadius: "6px",
                         color: "white",
-                        boxSizing: "border-box",
+                        boxSizing: "border-box"
                       }}
                       required
                     />
@@ -552,7 +435,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         background: "#0f172a",
                         border: "1px solid #334155",
                         borderRadius: "6px",
-                        color: "white",
+                        color: "white"
                       }}
                     >
                       <option value="state">State Government</option>
@@ -571,7 +454,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         padding: "10px 20px",
                         borderRadius: "6px",
                         fontWeight: "bold",
-                        cursor: "pointer",
+                        cursor: "pointer"
                       }}
                     >
                       Next: Tenant Admin
@@ -599,7 +482,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         border: "1px solid #334155",
                         borderRadius: "6px",
                         color: "white",
-                        boxSizing: "border-box",
+                        boxSizing: "border-box"
                       }}
                       required
                     />
@@ -621,7 +504,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         border: "1px solid #334155",
                         borderRadius: "6px",
                         color: "white",
-                        boxSizing: "border-box",
+                        boxSizing: "border-box"
                       }}
                       required
                     />
@@ -638,7 +521,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         padding: "10px 20px",
                         borderRadius: "6px",
                         fontWeight: "bold",
-                        cursor: "pointer",
+                        cursor: "pointer"
                       }}
                     >
                       Back
@@ -653,7 +536,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         padding: "10px 20px",
                         borderRadius: "6px",
                         fontWeight: "bold",
-                        cursor: "pointer",
+                        cursor: "pointer"
                       }}
                     >
                       {submitting ? "Provisioning..." : "Provision Tenant"}
@@ -672,14 +555,14 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                   <p style={{ color: "#cbd5e1", margin: 0, fontSize: "0.95rem" }}>
                     Government space <strong>{provisionResult.tenant?.name}</strong> has been created.
                   </p>
-                  
+
                   <div
                     style={{
                       background: "#0f172a",
                       padding: "15px",
                       borderRadius: "8px",
                       border: "1px solid #334155",
-                      textAlign: "left",
+                      textAlign: "left"
                     }}
                   >
                     <strong style={{ color: "#94a3b8", display: "block", marginBottom: "5px", fontSize: "0.85rem" }}>
@@ -691,7 +574,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                   </div>
 
                   <p style={{ color: "#94a3b8", fontSize: "0.85rem", margin: 0 }}>
-                    Copy the invitation link above. Share it with the tenant administrator so they can set up their secure login credentials.
+                    Copy the invitation link. Share it with the tenant administrator so they can activate their account.
                   </p>
 
                   <div style={{ display: "flex", justifyContent: "center", marginTop: "10px" }}>
@@ -704,7 +587,7 @@ export function PlatformAdminConsole({ token }: PlatformAdminConsoleProps) {
                         padding: "10px 24px",
                         borderRadius: "6px",
                         fontWeight: "bold",
-                        cursor: "pointer",
+                        cursor: "pointer"
                       }}
                     >
                       Done

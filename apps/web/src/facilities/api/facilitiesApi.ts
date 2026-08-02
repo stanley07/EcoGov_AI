@@ -17,7 +17,11 @@ export async function registerFacility(
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.error || "Failed to register facility");
+    const err = new Error(errorBody.error || "Failed to register facility") as any;
+    err.status = res.status;
+    err.existingFacilityId = errorBody.existingFacilityId;
+    err.confidence = errorBody.confidence;
+    throw err;
   }
 
   return res.json();

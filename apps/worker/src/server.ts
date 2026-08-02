@@ -2,8 +2,8 @@ import { Pool } from "pg";
 import { Config } from "@govos/configuration";
 import { logger } from "@govos/observability";
 import { z } from "zod";
-import { AgentRegistry, PromptRegistry, ToolRegistry } from "@govos/ai";
-import { TaskRegistry } from "@govos/core";
+import { AgentRegistry, PromptRegistry, ToolRegistry, OutboxEventDispatcher, DeterministicModelProvider, PolicyEngine, AIExecutionOrchestrator } from "@govos/ai";
+import { TaskRegistry, ScreenSubcontractorApplicationHandler, LicenceIssuanceService } from "@govos/core";
 import {
   createApp,
   RegistrationReviewTaskExecutor,
@@ -43,6 +43,17 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
     dataClassification: "internal",
   });
 
+  promptRegistry.register({
+    templateId: "ecogov.subcontractor-screening-template",
+    version: "1.0.0",
+    content: "Verify subcontractor details:\n- Business Name: {{businessName}}\n- Licence Type: {{licenseType}}\n- Experience Years: {{experienceYears}}\n\nDetermine recommendation, score, criteria, and risk flags.",
+    status: "active",
+    requiredVariables: ["businessName", "licenseType", "experienceYears"],
+    optionalVariables: ["documents", "tool_output", "schema_error"],
+    allowedAgents: ["ecogov.subcontractor-screening"],
+    dataClassification: "internal",
+  });
+
   // 2. Register Tools
   const permitTool = new DeterministicWastePermitLookup();
   toolRegistry.register(permitTool);
@@ -61,7 +72,7 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
       inputSchema: z.unknown(),
       outputSchema: z.unknown(),
     },
-    execute: async (input) => {
+    execute: async (input: any) => {
       return {
         data: input,
         usage: { inputTokens: 100, outputTokens: 50, estimatedCost: 0.0001 },
@@ -82,10 +93,46 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
       inputSchema: z.unknown(),
       outputSchema: z.unknown(),
     },
-    execute: async (input) => {
+    execute: async (input: any) => {
       return {
         data: input,
         usage: { inputTokens: 100, outputTokens: 50, estimatedCost: 0.0001 },
+        latencyMs: 15,
+        modelName: "deterministic-simulator",
+        executionStatus: "succeeded",
+      };
+    },
+  });
+
+  agentRegistry.register({
+    definition: {
+      name: "ecogov.subcontractor-screening",
+      version: "1.0.0",
+      provider: "deterministic",
+      model: "simulator",
+      objective: "Verify subcontractor qualifications and assess compliance risk.",
+      inputSchema: z.unknown(),
+      outputSchema: z.unknown(),
+    },
+    execute: async (input: any) => {
+      const vars = input.variables || {};
+      const businessName = vars.businessName || "";
+      const isHighRisk = businessName.toLowerCase().includes("fail") || businessName.toLowerCase().includes("high_risk");
+      const recommendation = isHighRisk ? "high_risk" : "recommended";
+      const score = isHighRisk ? 30 : 90;
+      return {
+        data: {
+          schemaVersion: "1",
+          recommendation,
+          score,
+          criteria: [
+            { code: "experience", score, weight: 0.5, explanation: "Proven active operation history" },
+            { code: "credentials", score, weight: 0.5, explanation: "Standard regulatory documentation matches" }
+          ],
+          riskFlags: isHighRisk ? [{ code: "CRIT-FAIL", severity: "high", explanation: "Discovered critical compliance history flag" }] : [],
+          summary: isHighRisk ? "Critical compliance risk discovered." : "Subcontractor satisfies baseline criteria."
+        },
+        usage: { inputTokens: 100, outputTokens: 80, estimatedCost: 0.0001 },
         latencyMs: 15,
         modelName: "deterministic-simulator",
         executionStatus: "succeeded",
@@ -125,8 +172,10 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   try {
     agentRegistry.get("ecogov.registration-review", "1.2.0");
     agentRegistry.get("ecogov.complaint-triage", "1.0.0");
+    agentRegistry.get("ecogov.subcontractor-screening", "1.0.0");
     promptRegistry.get("ecogov.facility-review", "1.0.0");
     promptRegistry.get("ecogov.complaint-triage-template", "1.0.0");
+    promptRegistry.get("ecogov.subcontractor-screening-template", "1.0.0");
     toolRegistry.get("check_waste_disposal_permit", "1.0.0");
     toolRegistry.get("find_similar_complaints", "1.0.0");
     logger.info("Validated all worker registry startup mappings successfully");
@@ -143,6 +192,28 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
     toolRegistry,
     taskRegistry,
   );
+
+  const dispatcher = new OutboxEventDispatcher(pool);
+  const provider = new DeterministicModelProvider();
+  const policyEngine = new PolicyEngine();
+  const orchestrator = new AIExecutionOrchestrator(pool, provider, policyEngine);
+  const screeningHandler = new ScreenSubcontractorApplicationHandler(
+    pool,
+    orchestrator,
+    agentRegistry,
+    promptRegistry
+  );
+
+  dispatcher.setDispatchCallback(async (event: any) => {
+    if (event.event_type === "subcontractor_application.submitted") {
+      await screeningHandler.handleScreening(event.payload, event.id);
+    } else if (event.event_type === "subcontractor_application.payment_confirmed") {
+      const { tenantId, applicationId, invoiceId, paymentId, applicationVersion } = event.payload;
+      const issuanceService = new LicenceIssuanceService(pool);
+      await issuanceService.issueLicence(tenantId, applicationId, invoiceId, paymentId, event.id, applicationVersion);
+    }
+  });
+  dispatcher.start();
 
   try {
     await app.listen({
@@ -170,6 +241,7 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
     }, 10000);
 
     try {
+      dispatcher.stop();
       await app.close();
       logger.info("Worker HTTP listeners closed");
 

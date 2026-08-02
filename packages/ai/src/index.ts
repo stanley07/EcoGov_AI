@@ -20,6 +20,7 @@ export * from "./runtime/usage-service.js";
 export * from "./runtime/tool-services.js";
 export * from "./runtime/validation-service.js";
 export * from "./runtime/model-runtime.js";
+export * from "./runtime/outbox-service.js";
 
 export class DeterministicModelProvider implements ModelProvider {
   public readonly providerName = "deterministic";
@@ -99,6 +100,18 @@ export class DeterministicModelProvider implements ModelProvider {
       attentionReasons: [],
       recommendedNextAction: "officer_review",
     });
+
+    this.fixtures.set("ecogov.subcontractor-screening", {
+      schemaVersion: "1",
+      recommendation: "recommended",
+      score: 90,
+      criteria: [
+        { code: "experience", score: 90, weight: 0.5, explanation: "Proven active operation history" },
+        { code: "credentials", score: 90, weight: 0.5, explanation: "Standard regulatory documentation matches" }
+      ],
+      riskFlags: [],
+      summary: "Subcontractor satisfies baseline criteria."
+    });
   }
 
   public async generate(request: ModelRequest): Promise<ModelResponse> {
@@ -109,10 +122,25 @@ export class DeterministicModelProvider implements ModelProvider {
     );
 
     const startTime = Date.now();
-    const data = this.fixtures.get(key);
+    let data = this.fixtures.get(key);
 
     if (!data) {
       throw new Error(`Unknown deterministic fixture key requested: ${key}`);
+    }
+
+    // Dynamic high risk simulation for subcontractor screening tests
+    if (key === "ecogov.subcontractor-screening" && request.prompt && (request.prompt.toLowerCase().includes("fail") || request.prompt.toLowerCase().includes("high_risk"))) {
+      data = {
+        schemaVersion: "1",
+        recommendation: "high_risk",
+        score: 30,
+        criteria: [
+          { code: "experience", score: 30, weight: 0.5, explanation: "Failed experience checks" },
+          { code: "credentials", score: 30, weight: 0.5, explanation: "Missing valid credentials" }
+        ],
+        riskFlags: [{ code: "CRIT-FAIL", severity: "high", explanation: "Critical compliance flags detected." }],
+        summary: "Critical compliance risk discovered."
+      };
     }
 
     return {

@@ -18,6 +18,9 @@ import { complaintRoutes } from "./routes/complaint.js";
 import { workbenchRoutes } from "./routes/workbench.js";
 import { publicRoutes } from "./routes/public.js";
 import platformAdminRoutes from "./routes/platform-admin.js";
+import { agentExecutionsRoutes } from "./routes/agent-executions.js";
+import { marketplaceRoutes } from "./routes/marketplace.js";
+import { dashboardRoutes } from "./routes/dashboard.js";
 
 
 // Extend Fastify request interface
@@ -101,6 +104,8 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
       req.url.startsWith("/docs") ||
       req.url.startsWith("/internal/diagnostics") ||
       req.url.startsWith("/public/platform-statistics") ||
+      req.url.startsWith("/public/marketplace/licences") ||
+      req.url.startsWith("/marketplace") ||
       (req.url === "/complaints" && req.method === "POST")
     ) {
       return;
@@ -191,6 +196,9 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
   app.register(complaintRoutes, { pool });
   app.register(workbenchRoutes, { pool });
   app.register(platformAdminRoutes, { pool });
+  app.register(agentExecutionsRoutes, { pool });
+  app.register(marketplaceRoutes, { pool });
+  app.register(dashboardRoutes, { pool });
 
   return app;
 }

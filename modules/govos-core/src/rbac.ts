@@ -36,6 +36,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   director: [
     "org:read",
     "facility:read",
+    "facility:write",
+    "facility:register",
     "facility:review",
     "workflow:read",
     "workflow:write",
@@ -47,6 +49,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   inspector: [
     "org:read",
     "facility:read",
+    "facility:write",
+    "facility:register",
     "facility:review",
     "workflow:read",
     "complaint:review",

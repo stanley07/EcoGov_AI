@@ -51,4 +51,12 @@ export class UsageAccountingService {
       [actualCost.toString(), reservationId]
     );
   }
+
+  public async reclaimExpiredReservations(): Promise<void> {
+    await this.pool.query(
+      `UPDATE ai_usage_reservation 
+       SET status = 'expired', reconciled_at = NOW() 
+       WHERE status = 'reserved' AND expires_at < NOW()`
+    );
+  }
 }

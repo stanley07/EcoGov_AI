@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import { FastifyInstance } from "fastify";
 import { Pool } from "pg";
-import { hasPermission, createWorkflowInstance, transitionWorkflowInstance, checkAndAssertActiveTenant } from "@govos/core";
+import { hasPermission, createWorkflowInstance, transitionWorkflowInstance, checkAndAssertActiveTenant, FacilityDuplicateDetectionService } from "@govos/core";
 import { isValidFacilityCategory, getEnvironmentalRisk, normalizeCategory } from "@govos/ecogov";
 import { getContext, logger } from "@govos/observability";
 
@@ -15,24 +15,54 @@ export function facilityRoutes(
     "/facilities",
     {
       schema: {
+        querystring: {
+          type: "object",
+          properties: {
+            limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+            offset: { type: "integer", minimum: 0, default: 0 },
+            sortBy: { type: "string", enum: ["businessName", "category", "riskRating", "status", "createdAt"], default: "createdAt" },
+            sortOrder: { type: "string", enum: ["asc", "desc"], default: "desc" },
+            status: { type: "string", enum: ["draft", "submitted", "in_review", "action_required", "approved", "rejected"] },
+            riskRating: { type: "string", enum: ["low", "medium", "high", "unknown"] },
+            search: { type: "string", maxLength: 100 }
+          }
+        },
         response: {
           200: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                id: { type: "string" },
-                tenantId: { type: "string" },
-                organizationId: { type: "string" },
-                ownerUserId: { type: "string", nullable: true },
-                businessName: { type: "string" },
-                category: { type: "string" },
-                address: { type: "string" },
-                latitude: { type: "number" },
-                longitude: { type: "number" },
-                registrationStatus: { type: "string" },
-                riskRating: { type: "string" },
-                createdAt: { type: "string" },
+            type: "object",
+            properties: {
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    tenantId: { type: "string" },
+                    organizationId: { type: "string" },
+                    ownerUserId: { type: "string", nullable: true },
+                    businessName: { type: "string" },
+                    category: { type: "string" },
+                    address: { type: "string" },
+                    latitude: { type: "number" },
+                    longitude: { type: "number" },
+                    registrationStatus: { type: "string" },
+                    riskRating: { type: "string" },
+                    registrationSource: { type: "string" },
+                    createdAt: { type: "string" },
+                    registrationId: { type: "string", nullable: true },
+                    primaryImageUrl: { type: "string", nullable: true },
+                  },
+                },
+              },
+              pagination: {
+                type: "object",
+                properties: {
+                  total: { type: "integer" },
+                  limit: { type: "integer" },
+                  offset: { type: "integer" },
+                  hasNext: { type: "boolean" },
+                  hasPrevious: { type: "boolean" },
+                },
               },
             },
           },
@@ -47,17 +77,141 @@ export function facilityRoutes(
         return reply.status(403).send({ error: "Forbidden" });
       }
 
-      const query = `
-      SELECT id, tenant_id as "tenantId", organization_id as "organizationId", owner_user_id as "ownerUserId",
-             business_name as "businessName", category, address,
-             latitude::float, longitude::float, registration_status as "registrationStatus",
-             risk_rating as "riskRating", created_at as "createdAt"
-      FROM facility
-      WHERE tenant_id = $1 AND deleted_at IS NULL
-      ORDER BY created_at DESC
-    `;
-      const result = await pool.query(query, [user.tenantId]);
-      return reply.send(result.rows);
+      await checkAndAssertActiveTenant(pool, user.tenantId);
+
+      const q = req.query as {
+        limit?: number;
+        offset?: number;
+        sortBy?: string;
+        sortOrder?: string;
+        status?: string;
+        riskRating?: string;
+        search?: string;
+      };
+
+      const limit = q.limit !== undefined ? Number(q.limit) : 25;
+      const offset = q.offset !== undefined ? Number(q.offset) : 0;
+      const sortBy = q.sortBy || "createdAt";
+      const sortOrderRaw = q.sortOrder || "desc";
+
+      if (isNaN(limit) || limit < 1 || limit > 100) {
+        return reply.status(400).send({ error: "Invalid limit. Must be between 1 and 100." });
+      }
+      if (isNaN(offset) || offset < 0) {
+        return reply.status(400).send({ error: "Invalid offset. Must be >= 0." });
+      }
+      if (!["asc", "desc"].includes(sortOrderRaw.toLowerCase())) {
+        return reply.status(400).send({ error: "Invalid sortOrder. Must be asc or desc." });
+      }
+      const allowedSortFields = ["businessName", "category", "riskRating", "status", "createdAt"];
+      if (!allowedSortFields.includes(sortBy)) {
+        return reply.status(400).send({ error: `Invalid sortBy field: ${sortBy}` });
+      }
+
+      const sortOrder = sortOrderRaw.toLowerCase() === "asc" ? "ASC" : "DESC";
+      const status = q.status;
+      const riskRating = q.riskRating;
+      const search = q.search;
+
+      const values: any[] = [user.tenantId];
+      let query = `
+        SELECT f.id, f.tenant_id as "tenantId", f.organization_id as "organizationId", f.owner_user_id as "ownerUserId",
+               f.business_name as "businessName", f.category, f.address,
+               f.latitude::float, f.longitude::float, f.registration_status as "registrationStatus",
+               f.risk_rating as "riskRating", f.registration_source as "registrationSource", f.created_at as "createdAt",
+               r.id as "registrationId",
+               (
+                 SELECT fd.storage_path
+                 FROM facility_document fd
+                 WHERE fd.tenant_id = f.tenant_id
+                   AND fd.facility_id = f.id
+                   AND fd.deleted_at IS NULL
+                   AND fd.mime_type LIKE 'image/%'
+                 ORDER BY fd.created_at DESC
+                 LIMIT 1
+               ) as "primaryImageUrl"
+        FROM facility f
+        LEFT JOIN facility_registration r ON r.tenant_id = f.tenant_id AND r.facility_id = f.id
+        WHERE f.tenant_id = $1 AND f.deleted_at IS NULL
+      `;
+
+      if (status) {
+        values.push(status);
+        query += ` AND f.registration_status = $${values.length}`;
+      }
+
+      if (riskRating) {
+        values.push(riskRating);
+        query += ` AND f.risk_rating = $${values.length}`;
+      }
+
+      if (search) {
+        // Escape wildcards: %, _, \
+        const escapedSearch = search.trim().replace(/[\\%_]/g, "\\$&");
+        values.push(`%${escapedSearch}%`);
+        query += ` AND (f.business_name ILIKE $${values.length} OR f.address ILIKE $${values.length} OR r.town ILIKE $${values.length} OR r.lga ILIKE $${values.length})`;
+      }
+
+      // Whitelisted Sort mapping
+      const sortColumns = {
+        businessName: "f.business_name",
+        category: "f.category",
+        riskRating: "f.risk_rating",
+        status: "f.registration_status",
+        createdAt: "f.created_at",
+      } as const;
+      const orderCol = sortColumns[sortBy as keyof typeof sortColumns] || "f.created_at";
+      query += ` ORDER BY ${orderCol} ${sortOrder}`;
+
+      // Build count query dynamically to match parameters exactly
+      let countQuery = `
+        SELECT COUNT(DISTINCT f.id)::int as total
+        FROM facility f
+        LEFT JOIN facility_registration r ON r.tenant_id = f.tenant_id AND r.facility_id = f.id
+        WHERE f.tenant_id = $1 AND f.deleted_at IS NULL
+      `;
+      const countValues: any[] = [user.tenantId];
+      if (status) {
+        countValues.push(status);
+        countQuery += ` AND f.registration_status = $${countValues.length}`;
+      }
+      if (riskRating) {
+        countValues.push(riskRating);
+        countQuery += ` AND f.risk_rating = $${countValues.length}`;
+      }
+      if (search) {
+        const escapedSearch = search.trim().replace(/[\\%_]/g, "\\$&");
+        countValues.push(`%${escapedSearch}%`);
+        countQuery += ` AND (f.business_name ILIKE $${countValues.length} OR f.address ILIKE $${countValues.length} OR r.town ILIKE $${countValues.length} OR r.lga ILIKE $${countValues.length})`;
+      }
+
+      const countResult = await pool.query(countQuery, countValues);
+      const total = countResult.rows[0]?.total || 0;
+
+      // Add pagination params
+      values.push(limit);
+      query += ` LIMIT $${values.length}`;
+      values.push(offset);
+      query += ` OFFSET $${values.length}`;
+
+      const result = await pool.query(query, values);
+      const hasNext = offset + limit < total;
+      const hasPrevious = offset > 0;
+
+      reply.header("X-Total-Count", total.toString());
+      reply.header("X-Limit", limit.toString());
+      reply.header("X-Offset", offset.toString());
+
+      return reply.send({
+        items: result.rows,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasNext,
+          hasPrevious,
+        },
+      });
     },
   );
 
@@ -87,6 +241,16 @@ export function facilityRoutes(
               registrationStatus: { type: "string" },
               riskRating: { type: "string" },
               createdAt: { type: "string" },
+              registrationId: { type: "string", nullable: true },
+              registrationSource: { type: "string", nullable: true },
+              registeredByUserId: { type: "string", nullable: true },
+              registeredBySubcontractorId: { type: "string", nullable: true },
+              contactPerson: { type: "string", nullable: true },
+              contactEmail: { type: "string", nullable: true },
+              contactPhone: { type: "string", nullable: true },
+              town: { type: "string", nullable: true },
+              lga: { type: "string", nullable: true },
+              primaryImageUrl: { type: "string", nullable: true },
             },
           },
           404: { type: "object", properties: { error: { type: "string" } } },
@@ -103,12 +267,29 @@ export function facilityRoutes(
 
       const { id } = req.params as { id: string };
       const query = `
-      SELECT id, tenant_id as "tenantId", organization_id as "organizationId", owner_user_id as "ownerUserId",
-             business_name as "businessName", category, address,
-             latitude::float, longitude::float, registration_status as "registrationStatus",
-             risk_rating as "riskRating", created_at as "createdAt"
-      FROM facility
-      WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+      SELECT f.id, f.tenant_id as "tenantId", f.organization_id as "organizationId", f.owner_user_id as "ownerUserId",
+             f.business_name as "businessName", f.category, f.address,
+             f.latitude::float, f.longitude::float, f.registration_status as "registrationStatus",
+             f.risk_rating as "riskRating", f.created_at as "createdAt",
+             f.registration_source as "registrationSource",
+             f.registered_by_user_id as "registeredByUserId",
+             f.registered_by_subcontractor_id as "registeredBySubcontractorId",
+             r.id as "registrationId",
+             r.contact_person as "contactPerson", r.contact_email as "contactEmail", r.contact_phone as "contactPhone",
+             r.town, r.lga,
+             (
+               SELECT fd.storage_path
+               FROM facility_document fd
+               WHERE fd.tenant_id = f.tenant_id
+                 AND fd.facility_id = f.id
+                 AND fd.deleted_at IS NULL
+                 AND fd.mime_type LIKE 'image/%'
+               ORDER BY fd.created_at DESC
+               LIMIT 1
+             ) as "primaryImageUrl"
+      FROM facility f
+      LEFT JOIN facility_registration r ON r.tenant_id = f.tenant_id AND r.facility_id = f.id
+      WHERE f.tenant_id = $1 AND f.id = $2 AND f.deleted_at IS NULL
     `;
       const result = await pool.query(query, [user.tenantId, id]);
       if (result.rows.length === 0) {
@@ -195,9 +376,12 @@ export function facilityRoutes(
       const riskRating = getEnvironmentalRisk(category);
 
       const query = `
-      INSERT INTO facility (tenant_id, organization_id, owner_user_id, business_name, category, address, latitude, longitude, risk_rating, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, business_name as "businessName", category, registration_status as "registrationStatus", risk_rating as "riskRating"
+      INSERT INTO facility (
+        tenant_id, organization_id, owner_user_id, business_name, category, address, latitude, longitude, risk_rating, created_by,
+        registration_source, registered_by_user_id
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'officer', $10)
+      RETURNING id, business_name as "businessName", category, registration_status as "registrationStatus", risk_rating as "riskRating", registration_source as "registrationSource"
     `;
 
       const result = await pool.query(query, [
@@ -252,6 +436,7 @@ export function facilityRoutes(
             permitNumber: { type: "string", maxLength: 100 },
             registrationNotes: { type: "string", maxLength: 2000 },
             clientSubmissionId: { type: "string", minLength: 5, maxLength: 255 },
+            overrideReason: { type: "string", maxLength: 1000 },
           },
         },
       },
@@ -261,6 +446,8 @@ export function facilityRoutes(
       if (!user) return reply.status(401).send({ error: "Unauthorized" });
 
       await checkAndAssertActiveTenant(pool, user.tenantId);
+
+      logger.info({ roles: user.roles, hasRegister: hasPermission(user.roles, "facility:register"), hasWrite: hasPermission(user.roles, "facility:write") }, "Registration permission check details");
 
       if (
         !hasPermission(user.roles, "facility:register") &&
@@ -333,6 +520,26 @@ export function facilityRoutes(
         });
       }
 
+      // Business duplicate detection
+      const dupService = new FacilityDuplicateDetectionService(pool);
+      const dupCheck = await dupService.checkDuplicate({
+        tenantId: user.tenantId,
+        businessName: body.businessName,
+        address: body.address,
+        lga: body.lga,
+      });
+
+      if (dupCheck.isDuplicate) {
+        const overrideReason = (body as any).overrideReason;
+        if (!overrideReason || typeof overrideReason !== "string" || overrideReason.trim() === "") {
+          return reply.status(409).send({
+            error: "Potential duplicate facility detected.",
+            existingFacilityId: dupCheck.existingFacilityId,
+            confidence: "high"
+          });
+        }
+      }
+
       let facilityId = "";
       let registrationId = "";
       let referenceNumber = "";
@@ -357,8 +564,9 @@ export function facilityRoutes(
           const facId = crypto.randomUUID();
           const facQuery = `
             INSERT INTO facility (
-              id, tenant_id, organization_id, owner_user_id, business_name, category, address, latitude, longitude, registration_status, risk_rating, created_by
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'submitted', $10, $11)
+              id, tenant_id, organization_id, owner_user_id, business_name, category, address, latitude, longitude, registration_status, risk_rating, created_by,
+              registration_source, registered_by_user_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'submitted', $10, $11, 'officer', $11)
           `;
           await client.query(facQuery, [
             facId,
@@ -382,8 +590,9 @@ export function facilityRoutes(
             INSERT INTO facility_registration (
               id, tenant_id, facility_id, reference_number, client_submission_id, status, submitted_by,
               description, town, lga, contact_person, contact_email, contact_phone, permit_number, registration_notes,
-              preliminary_risk_rating, record_version
-            ) VALUES ($1, $2, $3, $4, $5, 'submitted', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 1)
+              preliminary_risk_rating, record_version,
+              submitted_by_actor_type, submitted_by_actor_id, submission_channel
+            ) VALUES ($1, $2, $3, $4, $5, 'submitted', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 1, 'officer', $6, 'web_portal')
           `;
           await client.query(regQuery, [
             regId,
@@ -452,7 +661,9 @@ export function facilityRoutes(
                 category: canonicalCategory,
                 actorId: user.userId,
                 workflowInstanceId: instanceId,
-                clientSubmissionId: crypto.createHash('sha256').update(body.clientSubmissionId).digest('hex')
+                clientSubmissionId: crypto.createHash('sha256').update(body.clientSubmissionId).digest('hex'),
+                overrideReason: (body as any).overrideReason || null,
+                existingFacilityId: dupCheck.isDuplicate ? dupCheck.existingFacilityId : null
               }),
             ]
           );

@@ -5,6 +5,22 @@ import { OfficerWorkbench } from "./workbench/components/OfficerWorkbench.js";
 import { FacilityRegistrationModal } from "./facilities/components/FacilityRegistrationModal.js";
 import { LandingPage } from "./LandingPage.js";
 import { PlatformAdminConsole } from "./platform-admin/PlatformAdminConsole.js";
+import { FacilityRegistrationForm } from "./facilities/components/FacilityRegistrationForm.js";
+import { FacilityDetailDrawer } from "./facilities/components/FacilityDetailDrawer.js";
+import { ApplicationWizard } from "./marketplace/public/ApplicationWizard.js";
+import { ApplicationStatusPage } from "./marketplace/public/ApplicationStatusPage.js";
+import { GuidedDemoPanel } from "./GuidedDemoPanel.js";
+
+// Layout shell component imports
+import { AppShell } from "./layout/AppShell.js";
+import { Sidebar, ShellNavigationGroup } from "./layout/Sidebar.js";
+import { TopBar } from "./layout/TopBar.js";
+import { PageContainer } from "./layout/PageContainer.js";
+import { ModuleAvailabilityPanel } from "./layout/ModuleAvailabilityPanel.js";
+import { navigationGroups } from "./layout/navigationConfig.js";
+import { AccessDeniedPage } from "./layout/AccessDeniedPage.js";
+import { routesRegistry, validateAndStoreRedirect, consumeStoredRedirect, LEGACY_TAB_ROUTES } from "./layout/routes.js";
+
 
 
 // API target endpoint base URL
@@ -40,6 +56,7 @@ interface Facility {
     | "rejected";
   riskRating: "unknown" | "low" | "medium" | "high";
   createdAt: string;
+  primaryImageUrl?: string | null;
 }
 
 interface Organization {
@@ -53,6 +70,172 @@ interface Organization {
 
 
 
+export const resolveSessionPermissions = (roles: string[]): string[] => {
+  const permissions = new Set<string>();
+  if (roles.includes("super_admin")) {
+    permissions.add("org:read");
+    permissions.add("org:write");
+    permissions.add("user:read");
+    permissions.add("user:write");
+    permissions.add("facility:read");
+    permissions.add("facility:register");
+    permissions.add("facility:review");
+    permissions.add("complaint:review");
+    permissions.add("ecogov.dashboard.read");
+    permissions.add("ecogov.facilities.read");
+    permissions.add("ecogov.audits.read");
+    permissions.add("ecogov.inspections.read");
+    permissions.add("ecogov.permits.read");
+    permissions.add("ecogov.compliance.read");
+    permissions.add("ecogov.enforcement.read");
+    permissions.add("ecogov.waste.read");
+    permissions.add("ecogov.monitoring.read");
+    permissions.add("ecogov.reports.read");
+  }
+  if (roles.includes("director")) {
+    permissions.add("org:read");
+    permissions.add("facility:read");
+    permissions.add("facility:write");
+    permissions.add("facility:register");
+    permissions.add("facility:review");
+    permissions.add("audit:read");
+    permissions.add("complaint:review");
+    permissions.add("complaint:contact:read");
+    permissions.add("workbench:queue:read");
+    permissions.add("ecogov.dashboard.read");
+    permissions.add("ecogov.facilities.read");
+    permissions.add("ecogov.audits.read");
+    permissions.add("ecogov.inspections.read");
+    permissions.add("ecogov.permits.read");
+    permissions.add("ecogov.compliance.read");
+    permissions.add("ecogov.enforcement.read");
+    permissions.add("ecogov.waste.read");
+    permissions.add("ecogov.monitoring.read");
+    permissions.add("ecogov.reports.read");
+  }
+  if (roles.includes("inspector")) {
+    permissions.add("org:read");
+    permissions.add("facility:read");
+    permissions.add("facility:write");
+    permissions.add("facility:register");
+    permissions.add("facility:review");
+    permissions.add("complaint:review");
+    permissions.add("complaint:contact:read");
+    permissions.add("workbench:queue:read");
+    permissions.add("ecogov.dashboard.read");
+    permissions.add("ecogov.facilities.read");
+    permissions.add("ecogov.audits.read");
+    permissions.add("ecogov.inspections.read");
+    permissions.add("ecogov.permits.read");
+    permissions.add("ecogov.compliance.read");
+    permissions.add("ecogov.enforcement.read");
+    permissions.add("ecogov.waste.read");
+    permissions.add("ecogov.monitoring.read");
+    permissions.add("ecogov.reports.read");
+  }
+  if (roles.includes("environmental_consultant")) {
+    permissions.add("facility:read");
+    permissions.add("facility:register");
+    permissions.add("ecogov.dashboard.read");
+    permissions.add("ecogov.facilities.read");
+  }
+  if (roles.includes("citizen")) {
+    permissions.add("complaint:create");
+    permissions.add("facility:read");
+  }
+  if (roles.includes("finance_officer")) {
+    permissions.add("ecogov.dashboard.read");
+    permissions.add("facility:read");
+  }
+  return Array.from(permissions);
+};
+
+const getBreadcrumbs = (tab: string): string[] => {
+  switch (tab) {
+    case "dashboard":
+      return ["EcoGov", "Dashboard"];
+    case "registry":
+      return ["EcoGov", "Facilities"];
+    case "wizard":
+      return ["EcoGov", "Facilities", "Register"];
+    case "queue":
+      return ["EcoGov", "Operations", "Review Queue"];
+    case "subcontractor-apply":
+      return ["EcoGov", "Marketplace", "Apply"];
+    case "subcontractor-status":
+      return ["EcoGov", "Marketplace", "Status"];
+    case "settings":
+      return ["EcoGov", "Administration", "Settings"];
+    case "platform":
+      return ["GovOS", "Platform Admin"];
+    case "audits":
+      return ["EcoGov", "Operations", "Audits"];
+    case "inspections":
+      return ["EcoGov", "Operations", "Inspections"];
+    case "incidents":
+      return ["EcoGov", "Operations", "Incidents"];
+    case "permits":
+      return ["EcoGov", "Operations", "Permits"];
+    case "compliance":
+      return ["EcoGov", "Operations", "Compliance"];
+    case "enforcement":
+      return ["EcoGov", "Operations", "Enforcement"];
+    case "waste":
+      return ["EcoGov", "Waste Management"];
+    case "monitoring":
+      return ["EcoGov", "Environmental Monitoring"];
+    case "gis":
+      return ["EcoGov", "GIS & Mapping"];
+    case "reports":
+      return ["EcoGov", "Reports"];
+    default:
+      return ["EcoGov"];
+  }
+};
+
+const getPageTitle = (tab: string): string => {
+  switch (tab) {
+    case "dashboard":
+      return "System Dashboard";
+    case "registry":
+      return "Facility Registry";
+    case "wizard":
+      return "Register New Facility";
+    case "queue":
+      return "Officer Review Queue";
+    case "subcontractor-apply":
+      return "Apply for Licence";
+    case "subcontractor-status":
+      return "Licence Application Status";
+    case "settings":
+      return "Organization Settings";
+    case "platform":
+      return "Platform Admin Console";
+    case "audits":
+      return "Environmental Audits";
+    case "inspections":
+      return "Inspections";
+    case "incidents":
+      return "Incidents";
+    case "permits":
+      return "Permits";
+    case "compliance":
+      return "Compliance";
+    case "enforcement":
+      return "Enforcement Notices";
+    case "waste":
+      return "Waste Management";
+    case "monitoring":
+      return "Environmental Monitoring";
+    case "gis":
+      return "GIS & Mapping";
+    case "reports":
+      return "Reports";
+    default:
+      return "EcoGov Workspace";
+  }
+};
+
 function App() {
   const [token, setToken] = useState<string | null>(
     localStorage.getItem("govos_token"),
@@ -64,7 +247,24 @@ function App() {
   );
 
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "registry" | "wizard" | "queue" | "settings" | "platform"
+    | "dashboard"
+    | "registry"
+    | "wizard"
+    | "queue"
+    | "settings"
+    | "platform"
+    | "subcontractor-apply"
+    | "subcontractor-status"
+    | "audits"
+    | "inspections"
+    | "incidents"
+    | "permits"
+    | "compliance"
+    | "enforcement"
+    | "waste"
+    | "monitoring"
+    | "gis"
+    | "reports"
   >(() => {
     const savedUser = localStorage.getItem("govos_user")
       ? JSON.parse(localStorage.getItem("govos_user")!)
@@ -74,9 +274,36 @@ function App() {
       : "dashboard";
   });
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [dbKpis, setDbKpis] = useState<{
+    subcontractors: number;
+    licences: number;
+    revenueUsd: number;
+    territories: number;
+    facilities: number;
+    approvedFacilities: number;
+    activeReviews: number;
+  } | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const registerButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const [pagination, setPagination] = useState<{
+    total: number;
+    limit: number;
+    offset: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  }>({ total: 0, limit: 10, offset: 0, hasNext: false, hasPrevious: false });
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterRisk, setFilterRisk] = useState("");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [offset, setOffset] = useState(0);
+  const limit = 10;
+
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
 
   // Auth Form State
   const [email, setEmail] = useState("");
@@ -84,14 +311,7 @@ function App() {
   const [authError, setAuthError] = useState("");
 
   // Registration Form State
-  const [businessName, setBusinessName] = useState("");
-  const [category, setCategory] = useState("Car Wash");
-  const [address, setAddress] = useState("");
-  const [latitude, setLatitude] = useState(6.5244);
-  const [longitude, setLongitude] = useState(3.3792);
-  const [orgId, setOrgId] = useState("");
   const [wizardSuccess, setWizardSuccess] = useState("");
-  const [wizardError, setWizardError] = useState("");
 
 
 
@@ -152,12 +372,22 @@ function App() {
   const fetchData = async () => {
     if (!token) return;
     try {
-      const facRes = await fetch(`${API_BASE_URL}/facilities`, {
+      const queryParams = new URLSearchParams();
+      queryParams.append("limit", limit.toString());
+      queryParams.append("offset", offset.toString());
+      queryParams.append("sortBy", sortBy);
+      queryParams.append("sortOrder", sortOrder);
+      if (filterStatus) queryParams.append("status", filterStatus);
+      if (filterRisk) queryParams.append("riskRating", filterRisk);
+      if (searchTerm) queryParams.append("search", searchTerm);
+
+      const facRes = await fetch(`${API_BASE_URL}/facilities?${queryParams.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (facRes.ok) {
         const data = await facRes.json();
-        setFacilities(data);
+        setFacilities(data.items);
+        setPagination(data.pagination);
       }
 
       const orgRes = await fetch(`${API_BASE_URL}/organizations`, {
@@ -166,7 +396,14 @@ function App() {
       if (orgRes.ok) {
         const data = await orgRes.json();
         setOrganizations(data);
-        if (data.length > 0) setOrgId(data[0].id);
+      }
+
+      const kpiRes = await fetch(`${API_BASE_URL}/facilities/kpis`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (kpiRes.ok) {
+        const kpiData = await kpiRes.json();
+        setDbKpis(kpiData);
       }
 
       const readyRes = await fetch(`${API_BASE_URL}/readyz`);
@@ -183,67 +420,95 @@ function App() {
     if (token) {
       fetchData();
     }
-  }, [token]);
+  }, [token, offset, sortBy, sortOrder, filterStatus, filterRisk, searchTerm]);
 
-  // Handle facility registration submit
-  const handleRegisterFacility = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setWizardError("");
-    setWizardSuccess("");
-    try {
-      const res = await fetch(`${API_BASE_URL}/facilities`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          organizationId: orgId,
-          businessName,
-          category,
-          address,
-          latitude: parseFloat(latitude as any),
-          longitude: parseFloat(longitude as any),
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create facility");
+  // Listen to hash changes and update activeTab
+  useEffect(() => {
+    // If not authenticated, store target path and show landing page
+    if (!token || !user) {
+      const currentHash = window.location.hash;
+      if (currentHash && currentHash.startsWith("#/")) {
+        validateAndStoreRedirect(currentHash);
       }
-
-      const newFac = await res.json();
-
-      // Submit registration workflow immediately
-      const submitRes = await fetch(
-        `${API_BASE_URL}/facilities/${newFac.id}/register`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      if (!submitRes.ok) {
-        const err = await submitRes.json();
-        throw new Error(
-          err.error || "Facility created but registration trigger failed",
-        );
-      }
-
-      setWizardSuccess(
-        `Facility "${businessName}" successfully registered and queued for AI Review!`,
-      );
-      setBusinessName("");
-      setAddress("");
-      fetchData();
-    } catch (err: any) {
-      setWizardError(err.message);
+      return;
     }
-  };
 
+    // Authenticated path redirection and resolution
+    const handleHashChange = () => {
+      const currentHash = window.location.hash || "#/";
+      
+      // If we just logged in, check for stored redirect first
+      const storedRedirect = consumeStoredRedirect();
+      if (storedRedirect && storedRedirect !== currentHash) {
+        window.location.hash = storedRedirect;
+        return;
+      }
 
+      // Find matching route in registry
+      const normalized = currentHash.split("?")[0];
+      
+      // Check legacy aliases first
+      let matchedRoute = routesRegistry.find(
+        (r) => r.path === normalized || r.legacyAliases?.some(alias => `#/${alias}` === normalized)
+      );
 
+      // Fallback matching logic for exact matching
+      if (!matchedRoute) {
+        // Match legacy tab routes table
+        const matchedLegacyKey = Object.keys(LEGACY_TAB_ROUTES).find(
+          (key) => LEGACY_TAB_ROUTES[key as keyof typeof LEGACY_TAB_ROUTES] === normalized
+        );
+        if (matchedLegacyKey) {
+          matchedRoute = routesRegistry.find((r) => r.id === matchedLegacyKey);
+        }
+      }
 
+      // Default route fallbacks
+      if (!matchedRoute || normalized === "#/") {
+        const defaultPath = user.tenantId === "00000000-0000-0000-0000-000000000000" ? "#/platform" : "#/dashboard";
+        if (window.location.hash !== defaultPath) {
+          window.location.hash = defaultPath;
+        }
+        return;
+      }
+
+      // Validate platform admin boundary
+      if (matchedRoute.accessBoundary === "platform_admin" && user.tenantId !== "00000000-0000-0000-0000-000000000000") {
+        setActiveTab("denied" as any);
+        return;
+      }
+
+      // Validate permissions
+      const userPermissions = resolveSessionPermissions(user.roles);
+      if (matchedRoute.requiredPermission && !userPermissions.includes(matchedRoute.requiredPermission)) {
+        setActiveTab("denied" as any);
+        return;
+      }
+
+      // Synchronize with state
+      if (activeTab !== matchedRoute.id) {
+        setActiveTab(matchedRoute.id as any);
+      }
+    };
+
+    // Run initially
+    handleHashChange();
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange);
+    };
+  }, [token, user, activeTab]);
+
+  // Synchronize activeTab changes back to window.location.hash
+  useEffect(() => {
+    if (!token || !user) return;
+    const currentHash = window.location.hash;
+    const matchedRoute = routesRegistry.find((r) => r.id === activeTab);
+    if (matchedRoute && matchedRoute.path !== currentHash) {
+      window.location.hash = matchedRoute.path;
+    }
+  }, [activeTab, token, user]);
 
   // Renders the public Landing Page if token is missing
   if (!token || !user) {
@@ -265,205 +530,93 @@ function App() {
     user.roles.includes("inspector") ||
     user.roles.includes("super_admin");
 
+  const pageTitle = getPageTitle(activeTab);
+  const breadcrumbItems = getBreadcrumbs(activeTab);
+
+  // Grouped Navigation Tree data mapped dynamically from configuration with permission filters
+  const userPermissions = resolveSessionPermissions(user.roles);
+  const navGroups: ShellNavigationGroup[] = navigationGroups
+    .map((group) => {
+      const visibleItems = group.items
+        .map((item) => {
+          let isVisible = true;
+          if (item.platformAdminOnly) {
+            isVisible = user.tenantId === "00000000-0000-0000-0000-000000000000";
+          } else {
+            if (item.tenantOnly && user.tenantId === "00000000-0000-0000-0000-000000000000") {
+              isVisible = false;
+            }
+            if (item.requiredPermission) {
+              isVisible = isVisible && userPermissions.includes(item.requiredPermission);
+            }
+            if (item.requiredRoles) {
+              isVisible = isVisible && item.requiredRoles.some((r) => user.roles.includes(r));
+            }
+            if (item.excludeRoles) {
+              isVisible = isVisible && !item.excludeRoles.some((r) => user.roles.includes(r));
+            }
+          }
+
+          const isActive = activeTab === item.targetTab || (item.targetTab === "registry" && activeTab === "wizard");
+
+          return {
+            id: item.id,
+            label: item.label,
+            icon: item.icon,
+            isActive,
+            isVisible,
+            onSelect: () => setActiveTab(item.targetTab as any),
+          };
+        })
+        .filter((item) => item.isVisible);
+
+      return {
+        id: group.id,
+        label: group.label,
+        items: visibleItems,
+      };
+    })
+    .filter((group) => group.items.length > 0);
+
+  const sidebar = (
+    <Sidebar
+      groups={navGroups}
+      tenantName={user.tenantName || "Anambra State Ministry of Environment"}
+      userName={`${user.firstName} ${user.lastName}`}
+      userRoleContext={user.roles[0]?.toUpperCase() || "USER"}
+      onLogout={handleLogout}
+    />
+  );
+
+  const topBar = (
+    <TopBar
+      pageTitle={pageTitle}
+      tenantName={user.tenantName || "Anambra State Ministry of Environment"}
+      userName={`${user.firstName} ${user.lastName}`}
+      userRoles={user.roles}
+      breadcrumbItems={breadcrumbItems}
+      isMobileSidebarOpen={false} // Managed by AppShell internal state
+      onOpenMobileSidebar={() => {}} // Injected by AppShell React.cloneElement
+    />
+  );
+
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "#0f172a",
-        color: "#f1f5f9",
-      }}
+    <AppShell
+      sidebar={sidebar}
+      topBar={topBar}
+      pageTitle={pageTitle}
     >
-      {/* Sidebar navigation */}
-      <aside
-        style={{
-          width: "260px",
-          background: "#1e293b",
-          borderRight: "1px solid #334155",
-          padding: "30px 20px",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div style={{ marginBottom: "40px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <img
-            src="/minEnv.jpg"
-            alt="Anambra State Ministry of Environment logo"
-            style={{
-              width: "60px",
-              height: "60px",
-              objectFit: "contain",
-              borderRadius: "50%",
-              background: "white",
-              marginBottom: "10px",
-              border: "1px solid #334155"
-            }}
-          />
-          <h2 style={{ margin: 0, fontSize: "1.6rem", color: "#38bdf8", textAlign: "center" }}>
-            EcoGov AI
-          </h2>
-          <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "4px", textAlign: "center", display: "block", lineHeight: "1.2" }}>
-            workspace:<br/>
-            <strong>{apiReadyState ? (user?.tenantName || "Anambra State Ministry of Environment") : "Connecting..."}</strong>
-          </span>
-        </div>
+      <PageContainer>
+        {/* Tab Subcontractor: Apply */}
+        {activeTab === "subcontractor-apply" && (
+          <ApplicationWizard />
+        )}
 
-        <nav
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-            flex: 1,
-          }}
-        >
-          {user?.tenantId === "00000000-0000-0000-0000-000000000000" ? (
-            <>
-              <button
-                onClick={() => {
-                  setActiveTab("platform");
-                }}
-                style={{
-                  padding: "12px 15px",
-                  borderRadius: "8px",
-                  background: activeTab === "platform" ? "#0f172a" : "transparent",
-                  border: "none",
-                  color: "#f1f5f9",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                🛡️ Platform Console
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => {
-                  setActiveTab("dashboard");
-                }}
-                style={{
-                  padding: "12px 15px",
-                  borderRadius: "8px",
-                  background: activeTab === "dashboard" ? "#0f172a" : "transparent",
-                  border: "none",
-                  color: "#f1f5f9",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                📊 System Dashboard
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab("registry");
-                }}
-                style={{
-                  padding: "12px 15px",
-                  borderRadius: "8px",
-                  background: activeTab === "registry" ? "#0f172a" : "transparent",
-                  border: "none",
-                  color: "#f1f5f9",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                📋 Facility Registry
-              </button>
-              {!isOfficer && (
-                <button
-                  onClick={() => {
-                    setActiveTab("wizard");
-                  }}
-                  style={{
-                    padding: "12px 15px",
-                    borderRadius: "8px",
-                    background: activeTab === "wizard" ? "#0f172a" : "transparent",
-                    border: "none",
-                    color: "#f1f5f9",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                >
-                  ➕ Register Facility
-                </button>
-              )}
-              {isOfficer && (
-                <button
-                  onClick={() => {
-                    setActiveTab("queue");
-                  }}
-                  style={{
-                    padding: "12px 15px",
-                    borderRadius: "8px",
-                    background: activeTab === "queue" ? "#0f172a" : "transparent",
-                    border: "none",
-                    color: "#f1f5f9",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                >
-                  ⚖️ Officer Review Queue
-                </button>
-              )}
-            </>
-          )}
-          <button
-            onClick={() => {
-              setActiveTab("settings");
-            }}
-            style={{
-              padding: "12px 15px",
-              borderRadius: "8px",
-              background: activeTab === "settings" ? "#0f172a" : "transparent",
-              border: "none",
-              color: "#f1f5f9",
-              textAlign: "left",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
-          >
-            ⚙️ Org Settings
-          </button>
-        </nav>
+        {/* Tab Subcontractor: Status */}
+        {activeTab === "subcontractor-status" && (
+          <ApplicationStatusPage />
+        )}
 
-        <div style={{ borderTop: "1px solid #334155", paddingTop: "20px" }}>
-          <p
-            style={{
-              margin: "0 0 10px",
-              fontSize: "0.85rem",
-              color: "#94a3b8",
-            }}
-          >
-            logged in as: <br />
-            <strong>
-              {user.firstName} {user.lastName}
-            </strong>
-          </p>
-          <button
-            onClick={handleLogout}
-            style={{
-              width: "100%",
-              padding: "10px",
-              background: "#f87171",
-              color: "#0f172a",
-              border: "none",
-              borderRadius: "6px",
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Panel Content */}
-      <main style={{ flex: 1, padding: "40px", overflowY: "auto" }}>
         {/* Tab 0: Platform Admin Console */}
         {activeTab === "platform" && (
           <PlatformAdminConsole token={token!} />
@@ -564,6 +717,80 @@ function App() {
               </div>
             </section>
 
+            {/* GovOS Commercial & Operational KPIs Section */}
+            <div
+              style={{
+                background: "#0f172a",
+                padding: "30px",
+                borderRadius: "12px",
+                border: "1px solid #1e293b",
+                marginBottom: "30px",
+              }}
+            >
+              <h2 style={{ margin: "0 0 10px", color: "#38bdf8", fontSize: "1.4rem" }}>
+                💼 Operational & Commercial Intelligence
+              </h2>
+              <p style={{ color: "#94a3b8", margin: "0 0 20px 0", fontSize: "0.9rem" }}>
+                Real-time government KPIs and revenue collections captured in the secure ledger.
+              </p>
+              
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "20px",
+                }}
+              >
+                {/* KPI 1: Subcontractors */}
+                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Subcontractors</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#f8fafc", marginTop: "5px" }}>
+                    {dbKpis ? `${dbKpis.subcontractors} Active` : (sessionStorage.getItem("demo_subcontractor_id") ? "1 Active" : "0")}
+                  </div>
+                </div>
+
+                {/* KPI 2: Licences Issued */}
+                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Licences Issued</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#10b981", marginTop: "5px" }}>
+                    {dbKpis ? `${dbKpis.licences} Issued` : (sessionStorage.getItem("demo_licence_code") ? "1 Issued" : "0")}
+                  </div>
+                </div>
+
+                {/* KPI 3: Revenue Collected */}
+                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Ledger Revenue</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#fbbf24", marginTop: "5px" }}>
+                    {dbKpis ? `$${dbKpis.revenueUsd.toFixed(2)}` : (sessionStorage.getItem("demo_licence_code") ? "$500.00" : "$0.00")}
+                  </div>
+                </div>
+
+                {/* KPI 4: Territory Coverage */}
+                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Territories LGA</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#818cf8", marginTop: "5px" }}>
+                    {dbKpis && dbKpis.territories > 0 ? `${dbKpis.territories} LGA(s)` : (sessionStorage.getItem("demo_licence_code") ? "Awka South" : "None")}
+                  </div>
+                </div>
+
+                {/* KPI 5: Facilities Enrolled */}
+                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Facilities Acquired</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#38bdf8", marginTop: "5px" }}>
+                    {dbKpis ? `${dbKpis.facilities} Enrolled` : (sessionStorage.getItem("demo_facility_id") ? "1 Enrolled" : "0")}
+                  </div>
+                </div>
+
+                {/* KPI 6: AI Audits & Decided */}
+                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Review Actions</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#34d399", marginTop: "5px" }}>
+                    {dbKpis ? `${dbKpis.approvedFacilities} Approved / ${dbKpis.activeReviews} In-Review` : (sessionStorage.getItem("demo_officer_approved") === "true" ? "1 Approved" : sessionStorage.getItem("demo_facility_id") ? "AI Triaged" : "0")}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Diagnostics status check */}
             <div
               style={{
@@ -606,7 +833,6 @@ function App() {
           </div>
         )}
 
-        {/* Tab 2: Registry */}
         {activeTab === "registry" && (
           <div>
             <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -618,9 +844,7 @@ function App() {
                   {`${user?.tenantName || "Anambra State Ministry of Environment"} Regulated Facilities`}
                 </p>
               </div>
-              {(user?.roles.includes("super_admin") ||
-                user?.roles.includes("facility:register") ||
-                user?.roles.includes("facility:write")) && (
+              {user && (
                 <button
                   ref={registerButtonRef}
                   onClick={() => setIsRegisterModalOpen(true)}
@@ -643,6 +867,111 @@ function App() {
               )}
             </header>
 
+            {/* Search and Filters Bar */}
+            <div
+              style={{
+                display: "flex",
+                gap: "16px",
+                marginBottom: "20px",
+                flexWrap: "wrap",
+                alignItems: "center"
+              }}
+            >
+              <div style={{ flexGrow: 1, minWidth: "200px" }}>
+                <input
+                  type="text"
+                  placeholder="Search by name, address, town, LGA..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setOffset(0);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    background: "#1e293b",
+                    border: "1px solid #334155",
+                    borderRadius: "6px",
+                    color: "#f8fafc",
+                    fontSize: "0.9rem",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => {
+                    setFilterStatus(e.target.value);
+                    setOffset(0);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    background: "#1e293b",
+                    border: "1px solid #334155",
+                    borderRadius: "6px",
+                    color: "#f8fafc",
+                    fontSize: "0.9rem",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">-- All Statuses --</option>
+                  <option value="draft">DRAFT</option>
+                  <option value="submitted">SUBMITTED</option>
+                  <option value="in_review">IN REVIEW</option>
+                  <option value="approved">APPROVED</option>
+                  <option value="rejected">REJECTED</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={filterRisk}
+                  onChange={(e) => {
+                    setFilterRisk(e.target.value);
+                    setOffset(0);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    background: "#1e293b",
+                    border: "1px solid #334155",
+                    borderRadius: "6px",
+                    color: "#f8fafc",
+                    fontSize: "0.9rem",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">-- All Risks --</option>
+                  <option value="low">LOW</option>
+                  <option value="medium">MEDIUM</option>
+                  <option value="high">HIGH</option>
+                  <option value="unknown">UNKNOWN</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setFilterStatus("");
+                  setFilterRisk("");
+                  setOffset(0);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  background: "transparent",
+                  border: "1px solid #475569",
+                  borderRadius: "6px",
+                  color: "#cbd5e1",
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Clear Filters
+              </button>
+            </div>
+
             <div
               style={{
                 background: "#1e293b",
@@ -651,7 +980,48 @@ function App() {
                 overflow: "hidden",
               }}
             >
+              <style>{`
+                @media (max-width: 768px) {
+                  .facility-table thead {
+                    display: none !important;
+                  }
+                  .facility-table tbody {
+                    display: block !important;
+                    width: 100% !important;
+                  }
+                  .facility-table tr {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    background: #1e293b !important;
+                    border: 1px solid #334155 !important;
+                    border-radius: 12px !important;
+                    padding: 16px !important;
+                    margin-bottom: 16px !important;
+                    gap: 12px !important;
+                  }
+                  .facility-table td {
+                    display: block !important;
+                    padding: 0 !important;
+                    border: none !important;
+                    width: 100% !important;
+                  }
+                  .facility-table td.category-cell {
+                    display: none !important;
+                  }
+                  .facility-table td.risk-cell, 
+                  .facility-table td.status-cell {
+                    display: inline-block !important;
+                    width: auto !important;
+                    margin-right: 8px !important;
+                  }
+                  .facility-table td.address-cell {
+                    margin-top: 4px !important;
+                    font-size: 0.85rem !important;
+                  }
+                }
+              `}</style>
               <table
+                className="facility-table"
                 style={{
                   width: "100%",
                   borderCollapse: "collapse",
@@ -665,24 +1035,106 @@ function App() {
                       borderBottom: "1px solid #334155",
                     }}
                   >
-                    <th style={{ padding: "15px 20px" }}>Business Name</th>
-                    <th style={{ padding: "15px 20px" }}>Category</th>
-                    <th style={{ padding: "15px 20px" }}>Risk Rating</th>
-                    <th style={{ padding: "15px 20px" }}>Status</th>
-                    <th style={{ padding: "15px 20px" }}>Address</th>
+                    <th
+                      onClick={() => {
+                        const nextOrder = sortBy === "businessName" && sortOrder === "desc" ? "asc" : "desc";
+                        setSortBy("businessName");
+                        setSortOrder(nextOrder);
+                        setOffset(0);
+                      }}
+                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "businessName" ? "#38bdf8" : "#f1f5f9" }}
+                    >
+                      Business Name {sortBy === "businessName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                    <th
+                      onClick={() => {
+                        const nextOrder = sortBy === "category" && sortOrder === "desc" ? "asc" : "desc";
+                        setSortBy("category");
+                        setSortOrder(nextOrder);
+                        setOffset(0);
+                      }}
+                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "category" ? "#38bdf8" : "#f1f5f9" }}
+                    >
+                      Category {sortBy === "category" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                    <th
+                      onClick={() => {
+                        const nextOrder = sortBy === "riskRating" && sortOrder === "desc" ? "asc" : "desc";
+                        setSortBy("riskRating");
+                        setSortOrder(nextOrder);
+                        setOffset(0);
+                      }}
+                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "riskRating" ? "#38bdf8" : "#f1f5f9" }}
+                    >
+                      Risk Rating {sortBy === "riskRating" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                    <th
+                      onClick={() => {
+                        const nextOrder = sortBy === "status" && sortOrder === "desc" ? "asc" : "desc";
+                        setSortBy("status");
+                        setSortOrder(nextOrder);
+                        setOffset(0);
+                      }}
+                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "status" ? "#38bdf8" : "#f1f5f9" }}
+                    >
+                      Status {sortBy === "status" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                    <th style={{ padding: "15px 20px", color: "#f1f5f9" }}>Address</th>
                   </tr>
                 </thead>
                 <tbody>
                   {facilities.map((fac) => (
                     <tr
                       key={fac.id}
-                      style={{ borderBottom: "1px solid #334155" }}
+                      onClick={() => setSelectedFacilityId(fac.id)}
+                      style={{
+                        borderBottom: "1px solid #334155",
+                        cursor: "pointer",
+                        transition: "background 0.2s"
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.background = "#24334d")}
+                      onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <td style={{ padding: "15px 20px", fontWeight: "bold" }}>
-                        {fac.businessName}
+                      <td className="facility-cell" style={{ padding: "15px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          {/* Thumbnail Image Container */}
+                          <div style={{
+                            width: "56px",
+                            height: "56px",
+                            borderRadius: "8px",
+                            overflow: "hidden",
+                            border: "1px solid #334155",
+                            background: "#0f172a",
+                            flexShrink: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}>
+                            <img
+                              src={fac.primaryImageUrl || "/facility_placeholder.jpg"}
+                              alt={`${fac.businessName} facility`}
+                              loading="lazy"
+                              width={56}
+                              height={56}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              onError={(e) => {
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (target.src !== "/facility_placeholder.jpg") {
+                                  target.src = "/facility_placeholder.jpg";
+                                }
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: "bold", color: "#f8fafc" }}>{fac.businessName}</div>
+                            <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: "2px" }}>
+                              {fac.category.replace("_", " ").toUpperCase()}
+                            </div>
+                          </div>
+                        </div>
                       </td>
-                      <td style={{ padding: "15px 20px" }}>{fac.category}</td>
-                      <td style={{ padding: "15px 20px" }}>
+                      <td className="category-cell" style={{ padding: "15px 20px" }}>{fac.category.replace("_", " ").toUpperCase()}</td>
+                      <td className="risk-cell" style={{ padding: "15px 20px" }}>
                         <span
                           style={{
                             padding: "4px 8px",
@@ -706,7 +1158,7 @@ function App() {
                           {fac.riskRating.toUpperCase()}
                         </span>
                       </td>
-                      <td style={{ padding: "15px 20px" }}>
+                      <td className="status-cell" style={{ padding: "15px 20px" }}>
                         <span
                           style={{
                             padding: "4px 8px",
@@ -716,21 +1168,21 @@ function App() {
                             background:
                               fac.registrationStatus === "approved"
                                 ? "rgba(52, 211, 153, 0.2)"
-                                : fac.registrationStatus === "in_review"
-                                  ? "rgba(56, 189, 248, 0.2)"
-                                  : "rgba(100, 116, 139, 0.2)",
+                                : fac.registrationStatus === "rejected"
+                                  ? "rgba(239, 68, 68, 0.2)"
+                                  : "rgba(56, 189, 248, 0.2)",
                             color:
                               fac.registrationStatus === "approved"
                                 ? "#a7f3d0"
-                                : fac.registrationStatus === "in_review"
-                                  ? "#bae6fd"
-                                  : "#cbd5e1",
+                                : fac.registrationStatus === "rejected"
+                                  ? "#fca5a5"
+                                  : "#bae6fd",
                           }}
                         >
                           {fac.registrationStatus.toUpperCase()}
                         </span>
                       </td>
-                      <td style={{ padding: "15px 20px", color: "#94a3b8" }}>
+                      <td className="address-cell" style={{ padding: "15px 20px", color: "#94a3b8" }}>
                         {fac.address}
                       </td>
                     </tr>
@@ -740,17 +1192,97 @@ function App() {
                       <td
                         colSpan={5}
                         style={{
-                          padding: "40px",
+                          padding: "60px 40px",
                           textAlign: "center",
                           color: "#64748b",
                         }}
                       >
-                        No facilities registered under this tenant yet.
+                        <div style={{ fontSize: "2rem", marginBottom: "12px" }}>📂</div>
+                        <h4 style={{ margin: "0 0 8px", color: "#cbd5e1" }}>No Regulated Facilities Found</h4>
+                        <p style={{ margin: "0 0 20px", fontSize: "0.85rem" }}>
+                          No facilities matched your current filters or tenant workspace view.
+                        </p>
+                        {(user?.roles.includes("super_admin") ||
+                          user?.roles.includes("facility:register") ||
+                          user?.roles.includes("facility:write")) ? (
+                          <button
+                            onClick={() => setIsRegisterModalOpen(true)}
+                            style={{
+                              padding: "8px 16px",
+                              background: "#0ea5e9",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              fontWeight: "bold",
+                              cursor: "pointer"
+                            }}
+                          >
+                            + Register Your First Facility
+                          </button>
+                        ) : (
+                          <div style={{ fontSize: "0.8rem", color: "#ef4444" }}>
+                            🔒 You do not have permissions to register facilities. Please contact your system administrator.
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+
+              {/* Pagination Controls Footer */}
+              {facilities.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px 20px",
+                    background: "#0f172a",
+                    borderTop: "1px solid #334155",
+                    fontSize: "0.85rem",
+                    color: "#94a3b8",
+                  }}
+                >
+                  <div>
+                    Showing {offset + 1} to {Math.min(offset + facilities.length, pagination.total)} of {pagination.total} facilities
+                  </div>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      disabled={!pagination.hasPrevious}
+                      onClick={() => setOffset((prev) => Math.max(0, prev - limit))}
+                      style={{
+                        padding: "6px 12px",
+                        background: pagination.hasPrevious ? "#334155" : "#1e293b",
+                        border: "1px solid #475569",
+                        borderRadius: "4px",
+                        color: pagination.hasPrevious ? "#f8fafc" : "#64748b",
+                        fontSize: "0.8rem",
+                        fontWeight: "bold",
+                        cursor: pagination.hasPrevious ? "pointer" : "not-allowed"
+                      }}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      disabled={!pagination.hasNext}
+                      onClick={() => setOffset((prev) => prev + limit)}
+                      style={{
+                        padding: "6px 12px",
+                        background: pagination.hasNext ? "#334155" : "#1e293b",
+                        border: "1px solid #475569",
+                        borderRadius: "4px",
+                        color: pagination.hasNext ? "#f8fafc" : "#64748b",
+                        fontSize: "0.8rem",
+                        fontWeight: "bold",
+                        cursor: pagination.hasNext ? "pointer" : "not-allowed"
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -781,229 +1313,24 @@ function App() {
                 {wizardSuccess}
               </div>
             )}
-            {wizardError && (
-              <div
-                style={{
-                  padding: "15px",
-                  background: "rgba(239, 68, 68, 0.15)",
-                  border: "1px solid #ef4444",
-                  borderRadius: "6px",
-                  color: "#fca5a5",
-                  marginBottom: "25px",
-                }}
-              >
-                {wizardError}
-              </div>
-            )}
 
-            <form
-              onSubmit={handleRegisterFacility}
-              style={{
-                background: "#1e293b",
-                padding: "30px",
-                borderRadius: "12px",
-                border: "1px solid #334155",
-                display: "grid",
-                gap: "20px",
+            <FacilityRegistrationForm
+              organizations={organizations}
+              token={token || ""}
+              isOfficer={isOfficer}
+              onSuccess={(ref) => {
+                setWizardSuccess(`Facility successfully registered! Reference: ${ref}`);
+                fetchData();
+                setActiveTab("registry");
               }}
-            >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "6px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  Assign to Organization
-                </label>
-                <select
-                  value={orgId}
-                  onChange={(e) => setOrgId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    background: "#0f172a",
-                    border: "1px solid #334155",
-                    color: "#f1f5f9",
-                  }}
-                >
-                  {organizations.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "6px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  Business Legal Name
-                </label>
-                <input
-                  type="text"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  required
-                  placeholder="e.g. Awka Car Wash Ltd"
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    background: "#0f172a",
-                    border: "1px solid #334155",
-                    color: "#f1f5f9",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "6px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  Facility Regulation Category
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    background: "#0f172a",
-                    border: "1px solid #334155",
-                    color: "#f1f5f9",
-                  }}
-                >
-                  <option value="Car Wash">Car Wash</option>
-                  <option value="Hotel">Hotel</option>
-                  <option value="Guest House">Guest House</option>
-                  <option value="Restaurant">Restaurant</option>
-                  <option value="Hospital">Hospital</option>
-                  <option value="Clinic">Clinic</option>
-                  <option value="Pharmacy">Pharmacy</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "6px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  Street Address
-                </label>
-                <textarea
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  required
-                  rows={3}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    background: "#0f172a",
-                    border: "1px solid #334155",
-                    color: "#f1f5f9",
-                    boxSizing: "border-box",
-                    fontFamily: "inherit",
-                  }}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "20px",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      color: "#94a3b8",
-                    }}
-                  >
-                    GPS Latitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={latitude}
-                    onChange={(e) => setLatitude(parseFloat(e.target.value))}
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: "6px",
-                      background: "#0f172a",
-                      border: "1px solid #334155",
-                      color: "#f1f5f9",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      color: "#94a3b8",
-                    }}
-                  >
-                    GPS Longitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={longitude}
-                    onChange={(e) => setLongitude(parseFloat(e.target.value))}
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: "6px",
-                      background: "#0f172a",
-                      border: "1px solid #334155",
-                      color: "#f1f5f9",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                style={{
-                  padding: "12px",
-                  background: "#38bdf8",
-                  color: "#0f172a",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  marginTop: "10px",
-                }}
-              >
-                Submit Environmental Application
-              </button>
-            </form>
+              onCancel={() => {
+                setActiveTab("dashboard");
+              }}
+              onViewFacility={(facilityId) => {
+                setSelectedFacilityId(facilityId);
+                setActiveTab("registry");
+              }}
+            />
           </div>
         )}
 
@@ -1083,12 +1410,91 @@ function App() {
                 </p>
                 <p style={{ margin: 0 }}>
                   <strong>Department:</strong> Environmental Enforcement &
-                  Engineering Registry
+                  Department Registry
                 </p>
               </div>
             </div>
           </div>
         )}
+
+        {/* Planned roadmap modules */}
+        {activeTab === "audits" && (
+          <ModuleAvailabilityPanel
+            title="Environmental Audits"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "inspections" && (
+          <ModuleAvailabilityPanel
+            title="Inspections"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "incidents" && (
+          <ModuleAvailabilityPanel
+            title="Incidents"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "permits" && (
+          <ModuleAvailabilityPanel
+            title="Permits"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "compliance" && (
+          <ModuleAvailabilityPanel
+            title="Compliance"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "enforcement" && (
+          <ModuleAvailabilityPanel
+            title="Enforcement Notices"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "waste" && (
+          <ModuleAvailabilityPanel
+            title="Waste Management"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "monitoring" && (
+          <ModuleAvailabilityPanel
+            title="Environmental Monitoring"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === "gis" && (
+          <ModuleAvailabilityPanel
+            title="GIS & Mapping"
+            reason="module_not_enabled"
+          />
+        )}
+
+        {activeTab === "reports" && (
+          <ModuleAvailabilityPanel
+            title="Reports"
+            reason="module_not_implemented"
+          />
+        )}
+
+        {activeTab === ("denied" as any) && (
+          <AccessDeniedPage
+            onBackToDashboard={() => setActiveTab("dashboard")}
+          />
+        )}
+      </PageContainer>
+
       {isRegisterModalOpen && (
         <FacilityRegistrationModal
           onClose={() => setIsRegisterModalOpen(false)}
@@ -1098,11 +1504,26 @@ function App() {
           organizations={organizations}
           token={token || ""}
           triggerButtonRef={registerButtonRef}
+          isOfficer={isOfficer}
+          onViewFacility={(facilityId) => setSelectedFacilityId(facilityId)}
         />
       )}
-      </main>
+      {selectedFacilityId && (
+        <FacilityDetailDrawer
+          facilityId={selectedFacilityId}
+          token={token || ""}
+          isOfficer={isOfficer}
+          onClose={() => setSelectedFacilityId(null)}
+        />
+      )}
 
-    </div>
+      <GuidedDemoPanel
+        token={token}
+        onNavigateTab={(tab) => setActiveTab(tab as any)}
+        onSetSelectedFacilityId={setSelectedFacilityId}
+        onRefreshData={fetchData}
+      />
+    </AppShell>
   );
 }
 

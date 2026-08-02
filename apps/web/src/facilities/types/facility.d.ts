@@ -14,6 +14,7 @@ export interface FacilityRegistrationPayload {
     permitNumber?: string;
     registrationNotes?: string;
     clientSubmissionId: string;
+    overrideReason?: string;
 }
 export interface FacilityRegistrationResponse {
     facilityId: string;

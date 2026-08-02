@@ -30,10 +30,10 @@ export const DEFAULT_BUDGET: ExecutionBudget = {
 };
 
 export type OrchestratorOutcome<T> =
-  | { readonly status: "completed"; readonly value: T }
-  | { readonly status: "awaiting_human"; readonly approvalRequestId: string }
-  | { readonly status: "policy_blocked"; readonly reasonCode: string }
-  | { readonly status: "failed"; readonly failureCode: string };
+  | { readonly status: "completed"; readonly value: T; readonly executionId?: string }
+  | { readonly status: "awaiting_human"; readonly approvalRequestId: string; readonly executionId?: string }
+  | { readonly status: "policy_blocked"; readonly reasonCode: string; readonly executionId?: string }
+  | { readonly status: "failed"; readonly failureCode: string; readonly executionId?: string };
 
 export class AIExecutionOrchestrator {
   private readonly pool: Pool;
@@ -52,25 +52,35 @@ export class AIExecutionOrchestrator {
     state: string,
     eventDesc?: string
   ): Promise<void> {
-    await this.pool.query(
+    const updateRes = await this.pool.query(
       `UPDATE ai_execution
-       SET current_state = $1
-       WHERE tenant_id = $2 AND id = $3`,
+       SET current_state = $1,
+           next_event_sequence = next_event_sequence + 1
+       WHERE tenant_id = $2 AND id = $3
+       RETURNING next_event_sequence - 1 AS seq_num`,
       [state, tenantId, executionId]
     );
+    const seqNum = updateRes.rows[0]?.seq_num || 0;
 
-    // Record execution state event
+    // Record execution state event with sequence_number
     await this.pool.query(
-      `INSERT INTO ai_execution_event (tenant_id, ai_execution_id, from_state, to_state, event_description)
-       VALUES ($1, $2, 'updating', $3, $4)`,
-      [tenantId, executionId, state, eventDesc || `Transitioned state to ${state}`]
+      `INSERT INTO ai_execution_event (
+         tenant_id, ai_execution_id, from_state, to_state, sequence_number, attempt_number, actor_type, event_description
+       ) VALUES ($1, $2, 'updating', $3, $4, 1, 'system', $5)`,
+      [
+        tenantId,
+        executionId,
+        state,
+        seqNum,
+        eventDesc || `Transitioned state to ${state}`
+      ]
     );
   }
 
   public async orchestrate<TOutput>(
     tenantId: string,
-    workflowId: string,
-    stepExecutionId: string,
+    workflowId: string | null,
+    stepExecutionId: string | null,
     agent: { definition: AgentDefinition },
     template: PromptTemplate,
     variables: Record<string, unknown>,
@@ -89,8 +99,8 @@ export class AIExecutionOrchestrator {
       `INSERT INTO ai_execution (
          id, tenant_id, workflow_instance_id, workflow_step_execution_id, agent_name,
          model_provider, model_name, prompt_template_version, input_hash,
-         execution_status, validation_status, started_at, current_state
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'running', 'pending', NOW(), 'queued')`,
+         execution_status, validation_status, started_at, current_state, actor_type
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'running', 'pending', NOW(), 'queued', 'system')`,
       [
         executionId,
         tenantId,
@@ -305,7 +315,7 @@ export class AIExecutionOrchestrator {
           );
 
           await this.updateState(executionId, tenantId, "succeeded", "Execution pipeline succeeded");
-          return { status: "completed", value: parseResult.data };
+          return { status: "completed", value: parseResult.data, executionId };
         } else {
           // Schema Correction attempt
           if (correctionAttempts < budget.maxCorrectionAttempts) {
@@ -349,11 +359,11 @@ export class AIExecutionOrchestrator {
         `UPDATE ai_execution
          SET execution_status = 'failed', completed_at = NOW(), failure_category = $1, error_code = $2
          WHERE tenant_id = $3 AND id = $4`,
-        [category, err.message, tenantId, executionId]
+        [category, err.message.substring(0, 50), tenantId, executionId]
       );
       await this.updateState(executionId, tenantId, "failed", `Aborted: ${err.message}`);
 
-      return { status: "failed", failureCode: err.message };
+      return { status: "failed", failureCode: err.message, executionId };
     }
   }
 }
