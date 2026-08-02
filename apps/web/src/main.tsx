@@ -20,6 +20,16 @@ import { ModuleAvailabilityPanel } from "./layout/ModuleAvailabilityPanel.js";
 import { navigationGroups } from "./layout/navigationConfig.js";
 import { AccessDeniedPage } from "./layout/AccessDeniedPage.js";
 import {
+  AUTH_RETURN_TO_KEY,
+  AppTab,
+  consumeStoredRedirect,
+  defaultHash,
+  matchRoute,
+  navigateHash,
+  navigateLegacyTab,
+  resolveRoute,
+} from "./layout/routes.js";
+import {
   PLATFORM_ADMIN_NAV_PERMISSION,
   SYSTEM_TENANT_ID,
   canViewPlatformAdmin,
@@ -258,26 +268,9 @@ function App() {
       : null,
   );
 
-  const [activeTab, setActiveTab] = useState<
-    | "dashboard"
-    | "registry"
-    | "wizard"
-    | "queue"
-    | "settings"
-    | "platform"
-    | "subcontractor-apply"
-    | "subcontractor-status"
-    | "audits"
-    | "inspections"
-    | "incidents"
-    | "permits"
-    | "compliance"
-    | "enforcement"
-    | "waste"
-    | "monitoring"
-    | "gis"
-    | "reports"
-  >(() => {
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    const initialRoute = matchRoute(window.location.hash);
+    if (initialRoute) return initialRoute.route.id;
     const savedUser = localStorage.getItem("govos_user")
       ? JSON.parse(localStorage.getItem("govos_user")!)
       : null;
@@ -362,11 +355,8 @@ function App() {
       localStorage.setItem("govos_user", JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      if (canViewPlatformAdmin(data.user.tenantId, data.user.roles)) {
-        setActiveTab("platform");
-      } else {
-        setActiveTab("dashboard");
-      }
+      const returnTo = consumeStoredRedirect();
+      navigateHash(returnTo || defaultHash(canViewPlatformAdmin(data.user.tenantId, data.user.roles)));
     } catch (err: any) {
       setAuthError(err.message);
     }
@@ -377,8 +367,34 @@ function App() {
     localStorage.removeItem("govos_user");
     setToken(null);
     setUser(null);
-    setActiveTab("dashboard");
+    navigateHash("#/dashboard");
   };
+
+  const userPermissions = user ? resolveSessionPermissions(user.roles) : [];
+  const canAccessPlatformAdmin = Boolean(
+    user && user.tenantId === SYSTEM_TENANT_ID && userPermissions.includes(PLATFORM_ADMIN_NAV_PERMISSION),
+  );
+
+  useEffect(() => {
+    const synchronizeRoute = () => {
+      if (token && user) sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
+      const resolution = resolveRoute({
+        hash: window.location.hash,
+        authenticated: Boolean(token && user),
+        permissions: userPermissions,
+        canAccessPlatformAdmin,
+      });
+      const currentMatch = matchRoute(window.location.hash);
+      if (!currentMatch || currentMatch.hash !== resolution.hash) {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${resolution.hash}`);
+      }
+      setActiveTab((current) => current === resolution.tab ? current : resolution.tab);
+      setSelectedFacilityId((current) => current === (resolution.facilityId || null) ? current : (resolution.facilityId || null));
+    };
+    synchronizeRoute();
+    window.addEventListener("hashchange", synchronizeRoute);
+    return () => window.removeEventListener("hashchange", synchronizeRoute);
+  }, [token, user, canAccessPlatformAdmin]);
 
   // Fetch facilities and organizations
   const fetchData = async () => {
@@ -434,8 +450,10 @@ function App() {
     }
   }, [token, offset, sortBy, sortOrder, filterStatus, filterRisk, searchTerm]);
 
-  // Renders the public Landing Page if token is missing
+  // Public marketplace routes intentionally render outside the authenticated shell.
   if (!token || !user) {
+    if (activeTab === "subcontractor-apply") return <ApplicationWizard />;
+    if (activeTab === "subcontractor-status") return <ApplicationStatusPage />;
     return (
       <LandingPage
         onLogin={handleLogin}
@@ -458,10 +476,6 @@ function App() {
   const breadcrumbItems = getBreadcrumbs(activeTab);
 
   // Grouped Navigation Tree data mapped dynamically from configuration with permission filters
-  const userPermissions = resolveSessionPermissions(user.roles);
-  const canAccessPlatformAdmin =
-    user.tenantId === SYSTEM_TENANT_ID &&
-    userPermissions.includes(PLATFORM_ADMIN_NAV_PERMISSION);
   const navGroups: ShellNavigationGroup[] = navigationGroups
     .map((group) => {
       const visibleItems = group.items
@@ -492,7 +506,7 @@ function App() {
             icon: item.icon,
             isActive,
             isVisible,
-            onSelect: () => setActiveTab(item.targetTab as any),
+            onSelect: () => navigateLegacyTab(item.targetTab),
           };
         })
         .filter((item) => item.isVisible);
@@ -551,7 +565,7 @@ function App() {
 
         {activeTab === "platform" && !canAccessPlatformAdmin && (
           <AccessDeniedPage
-            onBackToDashboard={() => setActiveTab("dashboard")}
+            onBackToDashboard={() => navigateLegacyTab("dashboard")}
           />
         )}
 
@@ -1019,7 +1033,7 @@ function App() {
                   {facilities.map((fac) => (
                     <tr
                       key={fac.id}
-                      onClick={() => setSelectedFacilityId(fac.id)}
+                      onClick={() => navigateHash(`#/facilities/${fac.id}`)}
                       style={{
                         borderBottom: "1px solid #334155",
                         cursor: "pointer",
@@ -1254,14 +1268,13 @@ function App() {
               onSuccess={(ref) => {
                 setWizardSuccess(`Facility successfully registered! Reference: ${ref}`);
                 fetchData();
-                setActiveTab("registry");
+                navigateLegacyTab("registry");
               }}
               onCancel={() => {
-                setActiveTab("dashboard");
+                navigateLegacyTab("dashboard");
               }}
               onViewFacility={(facilityId) => {
-                setSelectedFacilityId(facilityId);
-                setActiveTab("registry");
+                navigateHash(`#/facilities/${facilityId}`);
               }}
             />
           </div>
@@ -1423,7 +1436,7 @@ function App() {
 
         {activeTab === ("denied" as any) && (
           <AccessDeniedPage
-            onBackToDashboard={() => setActiveTab("dashboard")}
+            onBackToDashboard={() => navigateLegacyTab("dashboard")}
           />
         )}
       </PageContainer>
@@ -1438,7 +1451,7 @@ function App() {
           token={token || ""}
           triggerButtonRef={registerButtonRef}
           isOfficer={isOfficer}
-          onViewFacility={(facilityId) => setSelectedFacilityId(facilityId)}
+          onViewFacility={(facilityId) => navigateHash(`#/facilities/${facilityId}`)}
         />
       )}
       {selectedFacilityId && (
@@ -1446,14 +1459,14 @@ function App() {
           facilityId={selectedFacilityId}
           token={token || ""}
           isOfficer={isOfficer}
-          onClose={() => setSelectedFacilityId(null)}
+          onClose={() => navigateLegacyTab("registry")}
         />
       )}
 
       <GuidedDemoPanel
         token={token}
-        onNavigateTab={(tab) => setActiveTab(tab as any)}
-        onSetSelectedFacilityId={setSelectedFacilityId}
+        onNavigateTab={navigateLegacyTab}
+        onSetSelectedFacilityId={(facilityId) => facilityId ? navigateHash(`#/facilities/${facilityId}`) : navigateLegacyTab("registry")}
         onRefreshData={fetchData}
       />
     </AppShell>

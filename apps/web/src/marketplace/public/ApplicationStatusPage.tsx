@@ -21,13 +21,14 @@ export function ApplicationStatusPage() {
   const [paymentProof, setPaymentProof] = useState({ transactionReference: "", paymentDate: "", payerName: "", amount: "" });
   const [receipt, setReceipt] = useState<File | null>(null);
 
-  // Extract from hash URL e.g. #marketplace/status/:id
+  // Extract from canonical hash URL e.g. #/marketplace/status/:id.
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash;
       const parts = hash.split("/");
-      if (parts.length === 3 && parts[1] === "status") {
-        const idFromHash = parts[2];
+      const statusIndex = parts.findIndex(part => part.toLowerCase() === "status");
+      if (statusIndex >= 0) {
+        const idFromHash = parts[statusIndex + 1];
         if (idFromHash) {
           setAppId(idFromHash);
           const savedToken = sessionStorage.getItem("subcontractor_token") || "";

@@ -221,7 +221,7 @@ export function ApplicationWizard() {
       sessionStorage.removeItem("subcontractor_version");
 
       setTimeout(() => {
-        window.location.hash = `#marketplace/status/${applicationId}`;
+        window.location.hash = `#/marketplace/status/${applicationId}`;
       }, 2000);
     } catch (err: any) {
       setErrorMsg(err.message);

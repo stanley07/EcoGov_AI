@@ -1,289 +1,165 @@
+export const AUTH_RETURN_TO_KEY = "govos.auth.returnTo";
+
+export type AppTab =
+  | "dashboard" | "registry" | "wizard" | "queue" | "settings" | "platform"
+  | "subcontractor-apply" | "subcontractor-status" | "audits" | "inspections"
+  | "incidents" | "permits" | "compliance" | "enforcement" | "waste"
+  | "monitoring" | "gis" | "reports" | "denied";
+
 export type EcoGovRouteDefinition = {
-  id: string;
-  path: string; // e.g. '#/dashboard'
+  id: AppTab;
+  path: string;
   label: string;
-  group:
-    | "dashboard"
-    | "environmental_operations"
-    | "waste_management"
-    | "environmental_monitoring"
-    | "gis_mapping"
-    | "reports"
-    | "marketplace"
-    | "administration";
+  group: "dashboard" | "environmental_operations" | "waste_management" | "environmental_monitoring" | "gis_mapping" | "reports" | "marketplace" | "administration";
   accessBoundary: "public" | "authenticated" | "platform_admin";
   requiredPermission?: string;
-  implementationStatus: "available" | "foundation" | "planned";
-  breadcrumb?: string[];
-  legacyAliases?: string[];
+  implementationStatus: "available" | "planned";
+  breadcrumb: string[];
   order: number;
   visibleInNavigation: boolean;
 };
 
-export const routesRegistry: EcoGovRouteDefinition[] = [
-  {
-    id: "dashboard",
-    path: "#/dashboard",
-    label: "System Dashboard",
-    group: "dashboard",
-    accessBoundary: "authenticated",
-    implementationStatus: "available",
-    order: 1,
-    visibleInNavigation: true,
-    breadcrumb: ["Dashboard"],
-  },
-  {
-    id: "registry",
-    path: "#/facilities",
-    label: "Facility Registry",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    implementationStatus: "available",
-    order: 2,
-    visibleInNavigation: true,
-    legacyAliases: ["facilities"],
-    breadcrumb: ["Operations", "Facility Registry"],
-  },
-  {
-    id: "wizard",
-    path: "#/facilities/register",
-    label: "Register Facility",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    implementationStatus: "available",
-    order: 3,
-    visibleInNavigation: false,
-    breadcrumb: ["Operations", "Facility Registry", "Register"],
-  },
-  {
-    id: "queue",
-    path: "#/queue",
-    label: "Officer Workbench",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    requiredPermission: "facility:review",
-    implementationStatus: "available",
-    order: 4,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Officer Workbench"],
-  },
-  {
-    id: "audits",
-    path: "#/operations/audits",
-    label: "Environmental Audits",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    requiredPermission: "audit:read",
-    implementationStatus: "planned",
-    order: 5,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Environmental Audits"],
-  },
-  {
-    id: "inspections",
-    path: "#/operations/inspections",
-    label: "Inspections",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    requiredPermission: "facility:review",
-    implementationStatus: "planned",
-    order: 6,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Inspections"],
-  },
-  {
-    id: "incidents",
-    path: "#/operations/incidents",
-    label: "Incidents",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    implementationStatus: "planned",
-    order: 7,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Incidents"],
-  },
-  {
-    id: "permits",
-    path: "#/operations/permits",
-    label: "Permits",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    implementationStatus: "planned",
-    order: 8,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Permits"],
-  },
-  {
-    id: "compliance",
-    path: "#/operations/compliance",
-    label: "Compliance",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    requiredPermission: "facility:review",
-    implementationStatus: "planned",
-    order: 9,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Compliance"],
-  },
-  {
-    id: "enforcement",
-    path: "#/operations/enforcement",
-    label: "Enforcement Notices",
-    group: "environmental_operations",
-    accessBoundary: "authenticated",
-    requiredPermission: "facility:review",
-    implementationStatus: "planned",
-    order: 10,
-    visibleInNavigation: true,
-    breadcrumb: ["Operations", "Enforcement"],
-  },
-  {
-    id: "waste",
-    path: "#/waste",
-    label: "Waste Sites",
-    group: "waste_management",
-    accessBoundary: "authenticated",
-    implementationStatus: "planned",
-    order: 11,
-    visibleInNavigation: true,
-    breadcrumb: ["Waste Management", "Waste Sites"],
-  },
-  {
-    id: "monitoring",
-    path: "#/monitoring",
-    label: "Monitoring Stations",
-    group: "environmental_monitoring",
-    accessBoundary: "authenticated",
-    implementationStatus: "planned",
-    order: 12,
-    visibleInNavigation: true,
-    breadcrumb: ["Environmental Monitoring", "Monitoring Stations"],
-  },
-  {
-    id: "gis",
-    path: "#/gis",
-    label: "GIS Map Layers",
-    group: "gis_mapping",
-    accessBoundary: "authenticated",
-    implementationStatus: "planned",
-    order: 13,
-    visibleInNavigation: true,
-    breadcrumb: ["GIS & Mapping", "Map Layers"],
-  },
-  {
-    id: "reports",
-    path: "#/reports",
-    label: "Roadmap Reports",
-    group: "reports",
-    accessBoundary: "authenticated",
-    requiredPermission: "facility:review",
-    implementationStatus: "planned",
-    order: 14,
-    visibleInNavigation: true,
-    breadcrumb: ["Reports", "Roadmap Reports"],
-  },
-  {
-    id: "subcontractor-apply",
-    path: "#/marketplace/apply",
-    label: "Apply for Licence",
-    group: "marketplace",
-    accessBoundary: "authenticated",
-    implementationStatus: "available",
-    order: 15,
-    visibleInNavigation: true,
-    breadcrumb: ["Marketplace", "Apply for Licence"],
-  },
-  {
-    id: "subcontractor-status",
-    path: "#/marketplace/status",
-    label: "Licence Status",
-    group: "marketplace",
-    accessBoundary: "authenticated",
-    implementationStatus: "available",
-    order: 16,
-    visibleInNavigation: true,
-    breadcrumb: ["Marketplace", "Licence Status"],
-  },
-  {
-    id: "platform",
-    path: "#/platform",
-    label: "Platform Console",
-    group: "administration",
-    accessBoundary: "platform_admin",
-    implementationStatus: "available",
-    order: 17,
-    visibleInNavigation: true,
-    breadcrumb: ["Administration", "Platform Console"],
-  },
-  {
-    id: "settings",
-    path: "#/settings",
-    label: "Org Settings",
-    group: "administration",
-    accessBoundary: "authenticated",
-    implementationStatus: "available",
-    order: 18,
-    visibleInNavigation: true,
-    breadcrumb: ["Administration", "Org Settings"],
-  },
-];
+type RouteInput = Omit<EcoGovRouteDefinition, "label" | "group" | "breadcrumb" | "order" | "visibleInNavigation">;
+const routeMetadata: Record<AppTab, Pick<EcoGovRouteDefinition, "label" | "group" | "breadcrumb" | "order" | "visibleInNavigation">> = {
+  dashboard: { label: "System Dashboard", group: "dashboard", breadcrumb: ["Dashboard"], order: 1, visibleInNavigation: true },
+  registry: { label: "Facility Registry", group: "environmental_operations", breadcrumb: ["Operations", "Facility Registry"], order: 2, visibleInNavigation: true },
+  wizard: { label: "Register Facility", group: "environmental_operations", breadcrumb: ["Operations", "Facility Registry", "Register"], order: 3, visibleInNavigation: false },
+  queue: { label: "Officer Workbench", group: "environmental_operations", breadcrumb: ["Operations", "Officer Workbench"], order: 4, visibleInNavigation: true },
+  audits: { label: "Environmental Audits", group: "environmental_operations", breadcrumb: ["Operations", "Environmental Audits"], order: 5, visibleInNavigation: true },
+  inspections: { label: "Inspections", group: "environmental_operations", breadcrumb: ["Operations", "Inspections"], order: 6, visibleInNavigation: true },
+  incidents: { label: "Incidents", group: "environmental_operations", breadcrumb: ["Operations", "Incidents"], order: 7, visibleInNavigation: true },
+  permits: { label: "Permits", group: "environmental_operations", breadcrumb: ["Operations", "Permits"], order: 8, visibleInNavigation: true },
+  compliance: { label: "Compliance", group: "environmental_operations", breadcrumb: ["Operations", "Compliance"], order: 9, visibleInNavigation: true },
+  enforcement: { label: "Enforcement Notices", group: "environmental_operations", breadcrumb: ["Operations", "Enforcement"], order: 10, visibleInNavigation: true },
+  waste: { label: "Waste Sites", group: "waste_management", breadcrumb: ["Waste Management", "Waste Sites"], order: 11, visibleInNavigation: true },
+  monitoring: { label: "Monitoring Stations", group: "environmental_monitoring", breadcrumb: ["Environmental Monitoring", "Monitoring Stations"], order: 12, visibleInNavigation: true },
+  gis: { label: "GIS Map Layers", group: "gis_mapping", breadcrumb: ["GIS & Mapping", "Map Layers"], order: 13, visibleInNavigation: true },
+  reports: { label: "Roadmap Reports", group: "reports", breadcrumb: ["Reports", "Roadmap Reports"], order: 14, visibleInNavigation: true },
+  "subcontractor-apply": { label: "Apply for Licence", group: "marketplace", breadcrumb: ["Marketplace", "Apply for Licence"], order: 15, visibleInNavigation: true },
+  "subcontractor-status": { label: "Licence Status", group: "marketplace", breadcrumb: ["Marketplace", "Licence Status"], order: 16, visibleInNavigation: true },
+  platform: { label: "Platform Console", group: "administration", breadcrumb: ["Administration", "Platform Console"], order: 17, visibleInNavigation: true },
+  settings: { label: "Org Settings", group: "administration", breadcrumb: ["Administration", "Org Settings"], order: 18, visibleInNavigation: true },
+  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 19, visibleInNavigation: false },
+};
+const defineRoute = (route: RouteInput): EcoGovRouteDefinition => ({ ...routeMetadata[route.id], ...route });
 
-export const LEGACY_TAB_ROUTES = {
-  dashboard: "#/dashboard",
-  registry: "#/facilities",
-  facilities: "#/facilities",
-  wizard: "#/facilities/register",
-  queue: "#/queue",
-  "subcontractor-apply": "#/marketplace/apply",
-  "subcontractor-status": "#/marketplace/status",
-  settings: "#/settings",
-  platform: "#/platform",
-  audits: "#/operations/audits",
-  inspections: "#/operations/inspections",
-  incidents: "#/operations/incidents",
-  permits: "#/operations/permits",
-  compliance: "#/operations/compliance",
-  enforcement: "#/operations/enforcement",
-  waste: "#/waste",
-  monitoring: "#/monitoring",
-  gis: "#/gis",
-  reports: "#/reports",
-} as const;
+export const routesRegistry: readonly EcoGovRouteDefinition[] = ([
+  { id: "dashboard", path: "#/dashboard", accessBoundary: "authenticated", requiredPermission: "ecogov.dashboard.read", implementationStatus: "available" },
+  { id: "registry", path: "#/facilities", accessBoundary: "authenticated", requiredPermission: "ecogov.facilities.read", implementationStatus: "available" },
+  { id: "wizard", path: "#/facilities/register", accessBoundary: "authenticated", requiredPermission: "facility:register", implementationStatus: "available" },
+  { id: "registry", path: "#/facilities/:facilityId", accessBoundary: "authenticated", requiredPermission: "ecogov.facilities.read", implementationStatus: "available" },
+  { id: "queue", path: "#/queue", accessBoundary: "authenticated", requiredPermission: "facility:review", implementationStatus: "available" },
+  { id: "audits", path: "#/operations/audits", accessBoundary: "authenticated", requiredPermission: "ecogov.audits.read", implementationStatus: "planned" },
+  { id: "inspections", path: "#/operations/inspections", accessBoundary: "authenticated", requiredPermission: "ecogov.inspections.read", implementationStatus: "planned" },
+  { id: "incidents", path: "#/operations/incidents", accessBoundary: "authenticated", requiredPermission: "complaint:review", implementationStatus: "planned" },
+  { id: "permits", path: "#/operations/permits", accessBoundary: "authenticated", requiredPermission: "ecogov.permits.read", implementationStatus: "planned" },
+  { id: "compliance", path: "#/operations/compliance", accessBoundary: "authenticated", requiredPermission: "ecogov.compliance.read", implementationStatus: "planned" },
+  { id: "enforcement", path: "#/operations/enforcement", accessBoundary: "authenticated", requiredPermission: "ecogov.enforcement.read", implementationStatus: "planned" },
+  { id: "waste", path: "#/waste", accessBoundary: "authenticated", requiredPermission: "ecogov.waste.read", implementationStatus: "planned" },
+  { id: "monitoring", path: "#/monitoring", accessBoundary: "authenticated", requiredPermission: "ecogov.monitoring.read", implementationStatus: "planned" },
+  { id: "gis", path: "#/gis", accessBoundary: "authenticated", requiredPermission: "facility:read", implementationStatus: "planned" },
+  { id: "reports", path: "#/reports", accessBoundary: "authenticated", requiredPermission: "ecogov.reports.read", implementationStatus: "planned" },
+  { id: "subcontractor-apply", path: "#/marketplace/apply", accessBoundary: "public", implementationStatus: "available" },
+  { id: "subcontractor-status", path: "#/marketplace/status", accessBoundary: "public", implementationStatus: "available" },
+  { id: "subcontractor-status", path: "#/marketplace/status/:applicationId", accessBoundary: "public", implementationStatus: "available" },
+  { id: "platform", path: "#/platform", accessBoundary: "platform_admin", implementationStatus: "available" },
+  { id: "platform", path: "#/platform/:section", accessBoundary: "platform_admin", implementationStatus: "available" },
+  { id: "settings", path: "#/settings", accessBoundary: "authenticated", implementationStatus: "available" },
+  { id: "denied", path: "#/_denied", accessBoundary: "authenticated", implementationStatus: "available" },
+] satisfies readonly RouteInput[]).map(defineRoute);
 
-export function navigateLegacyTab(tabName: string) {
-  const hash = LEGACY_TAB_ROUTES[tabName as keyof typeof LEGACY_TAB_ROUTES];
-  if (hash) {
-    window.location.hash = hash;
-  }
+export const LEGACY_TAB_ROUTES: Readonly<Record<Exclude<AppTab, "denied">, string>> = {
+  dashboard: "#/dashboard", registry: "#/facilities", wizard: "#/facilities/register",
+  queue: "#/queue", settings: "#/settings", platform: "#/platform",
+  "subcontractor-apply": "#/marketplace/apply", "subcontractor-status": "#/marketplace/status",
+  audits: "#/operations/audits", inspections: "#/operations/inspections",
+  incidents: "#/operations/incidents", permits: "#/operations/permits",
+  compliance: "#/operations/compliance", enforcement: "#/operations/enforcement",
+  waste: "#/waste", monitoring: "#/monitoring", gis: "#/gis", reports: "#/reports",
+};
+
+export type RouteMatch = { route: EcoGovRouteDefinition; hash: string; params: Readonly<Record<string, string>> };
+
+export function normalizeHash(input: string): string | null {
+  if (typeof input !== "string") return null;
+  let value = input.trim();
+  if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(value) || value.includes("\\")) return null;
+  if (value.startsWith("#") && !value.startsWith("#/")) value = `#/${value.slice(1)}`;
+  if (!value.startsWith("#/")) return null;
+  const withoutQuery = value.split("?")[0]?.split("&")[0] || "";
+  let decoded: string;
+  try { decoded = decodeURIComponent(withoutQuery); } catch { return null; }
+  if (decoded.includes("..") || Array.from(decoded).some((character) => character.charCodeAt(0) < 32)) return null;
+  const normalized = decoded.toLowerCase().replace(/\/{2,}/g, "/").replace(/\/$/, "");
+  return normalized === "#" ? null : normalized;
 }
 
-// Redirect protection rules (only internal hash routes mapped in registry)
-export function validateAndStoreRedirect(targetHash: string): boolean {
-  // Reject absolute URLs, protocol-relative, javascript/data schemes
-  if (
-    targetHash.includes("://") ||
-    targetHash.startsWith("//") ||
-    /^\s*javascript:/i.test(targetHash) ||
-    /^\s*data:/i.test(targetHash)
-  ) {
-    return false;
+function matchPattern(pattern: string, hash: string): Readonly<Record<string, string>> | null {
+  const expected = pattern.split("/"); const actual = hash.split("/");
+  if (expected.length !== actual.length) return null;
+  const params: Record<string, string> = {};
+  for (let index = 0; index < expected.length; index += 1) {
+    const part = expected[index]; const candidate = actual[index];
+    if (!part || !candidate) return null;
+    if (part.startsWith(":")) {
+      if (!/^[a-z0-9_-]+$/i.test(candidate)) return null;
+      params[part.slice(1)] = candidate;
+    } else if (part !== candidate) return null;
   }
+  return params;
+}
 
-  // Find in registry
-  const normalized = targetHash.split("?")[0]; // ignore query parameters
-  const exists = routesRegistry.some((r) => r.path === normalized);
-  if (exists) {
-    sessionStorage.setItem("govos.auth.returnTo", targetHash);
-    return true;
+export function matchRoute(input: string): RouteMatch | null {
+  const hash = normalizeHash(input); if (!hash) return null;
+  for (const route of routesRegistry) {
+    const params = matchPattern(route.path, hash);
+    if (params) return { route, hash, params };
   }
-  return false;
+  return null;
+}
+
+export function defaultHash(canAccessPlatformAdmin: boolean): string {
+  return canAccessPlatformAdmin ? "#/platform" : "#/dashboard";
+}
+
+export function navigateHash(hash: string): boolean {
+  const match = matchRoute(hash); if (!match) return false;
+  if (window.location.hash !== match.hash) window.location.hash = match.hash;
+  return true;
+}
+
+export function navigateLegacyTab(tabName: string): boolean {
+  const hash = LEGACY_TAB_ROUTES[tabName as Exclude<AppTab, "denied">];
+  return hash ? navigateHash(hash) : false;
+}
+
+export function validateAndStoreRedirect(targetHash: string): boolean {
+  const match = matchRoute(targetHash);
+  if (!match || match.route.accessBoundary === "public" || match.route.id === "denied") return false;
+  sessionStorage.setItem(AUTH_RETURN_TO_KEY, match.hash);
+  return true;
 }
 
 export function consumeStoredRedirect(): string | null {
-  const returnTo = sessionStorage.getItem("govos.auth.returnTo");
-  if (returnTo) {
-    sessionStorage.removeItem("govos.auth.returnTo");
-    return returnTo;
+  const returnTo = sessionStorage.getItem(AUTH_RETURN_TO_KEY);
+  sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
+  return returnTo && matchRoute(returnTo) ? normalizeHash(returnTo) : null;
+}
+
+export type RouteResolution = { tab: AppTab; hash: string; facilityId?: string; denied: boolean; requiresLogin: boolean };
+
+export function resolveRoute(input: { hash: string; authenticated: boolean; permissions: readonly string[]; canAccessPlatformAdmin: boolean }): RouteResolution {
+  const fallback = defaultHash(input.canAccessPlatformAdmin);
+  const match = matchRoute(input.hash) || matchRoute(fallback)!;
+  if (match.route.accessBoundary !== "public" && !input.authenticated) {
+    validateAndStoreRedirect(match.hash);
+    return { tab: match.route.id, hash: match.hash, denied: false, requiresLogin: true };
   }
-  return null;
+  if (match.route.accessBoundary === "platform_admin" && !input.canAccessPlatformAdmin) {
+    return { tab: "denied", hash: "#/_denied", denied: true, requiresLogin: false };
+  }
+  if (match.route.requiredPermission && !input.permissions.includes(match.route.requiredPermission)) {
+    return { tab: "denied", hash: "#/_denied", denied: true, requiresLogin: false };
+  }
+  return { tab: match.route.id, hash: match.hash, facilityId: match.params.facilityId, denied: false, requiresLogin: false };
 }
