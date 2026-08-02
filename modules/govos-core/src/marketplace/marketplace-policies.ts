@@ -172,10 +172,10 @@ export interface PricingResult {
 
 export class MarketplacePricingPolicy {
   public static calculateFee(_licenseType: string): PricingResult {
-    // Standard annual license fee schedule: USD 500 for environmental consultants
+    // Pilot annual licence fee. Values are always sourced server-side.
     return {
       amountMicroUnits: 500000000,
-      currency: "USD",
+      currency: "NGN",
       description: "Annual Environmental Licence"
     };
   }

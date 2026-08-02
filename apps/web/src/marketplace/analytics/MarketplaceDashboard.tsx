@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PaymentVerificationPanel } from "../payments/PaymentVerificationPanel";
 
 export type WidgetState =
   | { status: "idle" }
@@ -163,6 +164,7 @@ export function MarketplaceDashboard({ token }: MarketplaceDashboardProps) {
 
   return (
     <div style={{ fontFamily: "Inter, sans-serif", color: "#f1f5f9" }}>
+      <PaymentVerificationPanel token={token} />
       {/* Dashboard Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
         <div>
@@ -789,4 +791,3 @@ function WidgetContainer({
     </div>
   );
 }
-

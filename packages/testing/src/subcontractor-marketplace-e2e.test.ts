@@ -213,7 +213,7 @@ describe("Subcontractor Onboarding & Monetization E2E System Boundary Tests", ()
       checkout_reference: checkoutSessionId,
       transaction_reference: `tx-ref-e2e-${crypto.randomUUID().substring(0, 6)}`,
       amount: 500000000,
-      currency: "usd"
+      currency: "ngn"
     };
     const rawBody = JSON.stringify(webhookPayload);
     const webhookRes = await app.inject({

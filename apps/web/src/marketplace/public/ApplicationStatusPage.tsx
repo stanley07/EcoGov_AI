@@ -16,6 +16,10 @@ export function ApplicationStatusPage() {
   const [statusData, setStatusData] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [claimMessage, setClaimMessage] = useState("");
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
+  const [paymentProof, setPaymentProof] = useState({ transactionReference: "", paymentDate: "", payerName: "", amount: "" });
+  const [receipt, setReceipt] = useState<File | null>(null);
 
   // Extract from hash URL e.g. #marketplace/status/:id
   useEffect(() => {
@@ -72,6 +76,30 @@ export function ApplicationStatusPage() {
       return;
     }
     fetchStatus(appId, token);
+  };
+
+  const submitPaymentProof = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!statusData?.invoice || !receipt) return setClaimMessage("A receipt file is required.");
+    setClaimSubmitting(true); setClaimMessage("");
+    try {
+      const bytes = new Uint8Array(await receipt.arrayBuffer());
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const contentHash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+      const response = await fetch(`${API_BASE_URL}/marketplace/applications/${appId}/payment-claims`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": `bank-${appId}-${paymentProof.transactionReference}` },
+        body: JSON.stringify({ accessToken: token, transactionReference: paymentProof.transactionReference,
+          paymentDate: paymentProof.paymentDate, payerName: paymentProof.payerName,
+          amountMicrounits: Math.round(Number(paymentProof.amount) * 1_000_000), currency: statusData.invoice.currency,
+          receipt: { filename: receipt.name, mimeType: receipt.type, sizeBytes: receipt.size, contentHash } })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Payment proof submission failed");
+      setClaimMessage("Payment proof submitted. Awaiting Verification.");
+      await fetchStatus(appId, token);
+    } catch (error: any) { setClaimMessage(error.message); }
+    finally { setClaimSubmitting(false); }
   };
 
   const getStatusBadgeStyle = (status: string) => {
@@ -183,6 +211,40 @@ export function ApplicationStatusPage() {
                 </tr>
               </tbody>
             </table>
+
+            {statusData.invoice && (
+              <section aria-labelledby="invoice-heading" style={{ background: "#0f172a", border: "1px solid #0ea5e9", borderRadius: "10px", padding: "20px", marginBottom: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
+                  <h2 id="invoice-heading" style={{ margin: 0, fontSize: "18px" }}>Bank Transfer Invoice</h2>
+                  <strong style={{ color: statusData.invoice.claimStatus === "confirmed" ? "#34d399" : statusData.invoice.claimStatus === "rejected" ? "#f87171" : "#fbbf24" }}>
+                    {statusData.invoice.claimStatus === "confirmed" ? "Payment Confirmed" : statusData.invoice.claimStatus === "rejected" ? "Rejected" : statusData.invoice.claimStatus ? "Awaiting Verification" : "Bank Transfer"}
+                  </strong>
+                </div>
+                <dl style={{ display: "grid", gridTemplateColumns: "minmax(130px, 1fr) 2fr", gap: "8px 16px", margin: "18px 0" }}>
+                  <dt>Invoice number</dt><dd style={{ margin: 0 }}>{statusData.invoice.invoiceNumber}</dd>
+                  <dt>Amount</dt><dd style={{ margin: 0, fontWeight: 700 }}>{new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(Number(statusData.invoice.amountDueMicrounits) / 1_000_000)}</dd>
+                  <dt>Licence period</dt><dd style={{ margin: 0 }}>{new Date(statusData.invoice.licencePeriodStart).toLocaleDateString()} – {new Date(statusData.invoice.licencePeriodEnd).toLocaleDateString()}</dd>
+                  <dt>Bank name</dt><dd style={{ margin: 0 }}>{statusData.invoice.bankName}</dd>
+                  <dt>Account name</dt><dd style={{ margin: 0 }}>{statusData.invoice.accountName}</dd>
+                  <dt>Account number</dt><dd style={{ margin: 0 }}>{statusData.invoice.accountNumber}</dd>
+                  <dt>Payment reference</dt><dd style={{ margin: 0 }}>{statusData.invoice.paymentReference}</dd>
+                  <dt>Payment status</dt><dd style={{ margin: 0 }}>{statusData.invoice.status}</dd>
+                </dl>
+                {!statusData.invoice.claimStatus || statusData.invoice.claimStatus === "rejected" ? (
+                  <form onSubmit={submitPaymentProof} style={{ display: "grid", gap: "10px" }}>
+                    <label>Transaction reference<input required value={paymentProof.transactionReference} onChange={e => setPaymentProof({...paymentProof, transactionReference: e.target.value})} style={{ display: "block", width: "100%", padding: "9px" }} /></label>
+                    <label>Payment date<input required type="date" value={paymentProof.paymentDate} onChange={e => setPaymentProof({...paymentProof, paymentDate: e.target.value})} style={{ display: "block", width: "100%", padding: "9px" }} /></label>
+                    <label>Payer name<input required value={paymentProof.payerName} onChange={e => setPaymentProof({...paymentProof, payerName: e.target.value})} style={{ display: "block", width: "100%", padding: "9px" }} /></label>
+                    <label>Amount (NGN)<input required type="number" min="0" step="0.01" value={paymentProof.amount} onChange={e => setPaymentProof({...paymentProof, amount: e.target.value})} style={{ display: "block", width: "100%", padding: "9px" }} /></label>
+                    <label>Receipt file<input required type="file" accept="application/pdf,image/png,image/jpeg" onChange={e => setReceipt(e.target.files?.[0] || null)} style={{ display: "block", marginTop: "6px" }} /></label>
+                    <button disabled={claimSubmitting} type="submit" style={{ padding: "11px", background: "#0ea5e9", border: 0, borderRadius: "6px", fontWeight: 700 }}>{claimSubmitting ? "Submitting…" : "Submit Payment Proof"}</button>
+                  </form>
+                ) : null}
+                {statusData.invoice.rejectionReason && <p style={{ color: "#fca5a5" }}>Reason: {statusData.invoice.rejectionReason}</p>}
+                {claimMessage && <p role="status">{claimMessage}</p>}
+                <p style={{ color: "#94a3b8", fontSize: "12px" }}><strong>Test Mode:</strong> simulated provider transactions remain available for guided demonstrations only.</p>
+              </section>
+            )}
 
             {/* Required actions warning if more info is needed */}
             {statusData.requiredActions.length > 0 && (

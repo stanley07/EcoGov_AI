@@ -248,6 +248,22 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
     );
     const licenceRow = licenceQuery.rows[0];
 
+    const invoiceRes = await pool.query(
+      `SELECT i.id, i.invoice_number AS "invoiceNumber", i.amount_due_microunits AS "amountDueMicrounits",
+              i.currency, i.billing_period_start AS "licencePeriodStart", i.billing_period_end AS "licencePeriodEnd",
+              i.bank_name AS "bankName", i.account_name AS "accountName", i.account_number AS "accountNumber",
+              i.payment_reference AS "paymentReference", i.status,
+              c.id AS "claimId", c.status AS "claimStatus", c.rejection_reason AS "rejectionReason"
+       FROM marketplace_invoice i
+       LEFT JOIN LATERAL (
+         SELECT id, status, rejection_reason FROM marketplace_payment_claim
+         WHERE tenant_id = i.tenant_id AND invoice_id = i.id ORDER BY created_at DESC LIMIT 1
+       ) c ON TRUE
+       WHERE i.tenant_id = $1 AND i.application_id = $2
+       ORDER BY i.created_at DESC LIMIT 1`,
+      [appRow.tenant_id, id]
+    );
+
     return reply.send({
       applicationId: appRow.id,
       status: appRow.status,
@@ -257,6 +273,7 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
       updatedAt: appRow.updated_at,
       subcontractorId: licenceRow ? licenceRow.subcontractorId : null,
       licenceCode: licenceRow ? licenceRow.licenceCode : null,
+      invoice: invoiceRes.rows[0] || null,
     });
   });
 
@@ -476,6 +493,19 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
     };
   }
 
+  async function hasMarketplacePaymentVerificationPermission(userId: string, tenantId: string): Promise<boolean> {
+    const result = await pool.query(
+      `SELECT 1
+       FROM membership m
+       JOIN role_permission rp ON rp.role_id = m.role_id
+       JOIN permission p ON p.id = rp.permission_id AND p.tenant_id = m.tenant_id
+       WHERE m.user_id = $1 AND m.tenant_id = $2 AND p.name = 'marketplace.payment.verify'
+       LIMIT 1`,
+      [userId, tenantId]
+    );
+    return result.rows.length > 0;
+  }
+
   const reviewService = new OfficerReviewService(pool);
 
   // 7. Officer Approve
@@ -650,6 +680,149 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
     }
   });
 
+  // Applicant: submit a bank-transfer receipt and immutable invoice claim.
+  app.post("/marketplace/applications/:id/payment-claims", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const { id } = req.params as { id: string };
+    const body = req.body as any;
+    const idempotencyKey = String(req.headers["idempotency-key"] || body.idempotencyKey || "").trim();
+    if (!body.accessToken || !idempotencyKey) {
+      return reply.status(400).send({ error: "Access token and Idempotency-Key are required" });
+    }
+
+    const appResult = await pool.query("SELECT * FROM subcontractor_application WHERE id = $1", [id]);
+    if (!appResult.rows.length) return sendGenericUnauthorized(reply);
+    const application = appResult.rows[0];
+    const tokenHash = AccessTokenService.hashToken(body.accessToken);
+    if (!AccessTokenService.timingSafeCompare(application.access_token_hash, tokenHash)) return sendGenericUnauthorized(reply);
+    if (!["invoice_pending", "payment_pending"].includes(application.status)) {
+      return reply.status(400).send({ error: "Application is not awaiting payment" });
+    }
+
+    const invoiceResult = await pool.query(
+      "SELECT * FROM marketplace_invoice WHERE tenant_id = $1 AND application_id = $2 AND status IN ('unpaid', 'pending') ORDER BY created_at DESC LIMIT 1",
+      [application.tenant_id, id]
+    );
+    if (!invoiceResult.rows.length) return reply.status(400).send({ error: "No payable invoice found" });
+    const invoice = invoiceResult.rows[0];
+    const claimedAmount = Number(body.amountMicrounits);
+    const claimedCurrency = String(body.currency || "").toUpperCase();
+    if (claimedAmount !== Number(invoice.amount_due_microunits)) return reply.status(400).send({ error: "Amount mismatch" });
+    if (claimedCurrency !== invoice.currency) return reply.status(400).send({ error: "Currency mismatch" });
+    if (!body.transactionReference || !body.paymentDate || !body.payerName || !body.receipt) {
+      return reply.status(400).send({ error: "Transaction reference, payment date, payer name, and receipt are required" });
+    }
+
+    const requestHash = crypto.createHash("sha256").update(JSON.stringify({
+      transactionReference: body.transactionReference, paymentDate: body.paymentDate, payerName: body.payerName,
+      amountMicrounits: claimedAmount, currency: claimedCurrency, receipt: body.receipt
+    })).digest("hex");
+    const existing = await pool.query(
+      "SELECT id, status, request_hash FROM marketplace_payment_claim WHERE tenant_id = $1 AND application_id = $2 AND idempotency_key = $3",
+      [application.tenant_id, id, idempotencyKey]
+    );
+    if (existing.rows.length) {
+      if (existing.rows[0].request_hash !== requestHash) return reply.status(409).send({ error: "Idempotency key reused with different payload" });
+      return reply.send({ claimId: existing.rows[0].id, status: existing.rows[0].status, deduplicated: true });
+    }
+
+    let upload;
+    try {
+      upload = await docStore.createUpload({ tenantId: application.tenant_id, applicationId: id, documentType: "payment_receipt",
+        filename: body.receipt.filename, mimeType: body.receipt.mimeType, sizeBytes: body.receipt.sizeBytes, contentHash: body.receipt.contentHash });
+      const verified = await docStore.verifyObject({ storageKey: upload.storageKey, expectedSize: body.receipt.sizeBytes, expectedHash: body.receipt.contentHash });
+      if (verified.scanStatus !== "passed") return reply.status(400).send({ error: "Receipt failed secure document scan" });
+    } catch (error: any) {
+      return reply.status(400).send({ error: error.message });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const document = await client.query(
+        `INSERT INTO subcontractor_application_document
+         (tenant_id, application_id, document_type, storage_key, content_hash, mime_type, size_bytes, scan_status, verification_status)
+         VALUES ($1,$2,'payment_receipt',$3,$4,$5,$6,'passed','pending') RETURNING id`,
+        [application.tenant_id, id, upload.storageKey, body.receipt.contentHash, body.receipt.mimeType, body.receipt.sizeBytes]
+      );
+      const claim = await client.query(
+        `INSERT INTO marketplace_payment_claim
+         (tenant_id, application_id, invoice_id, transaction_reference, payment_date, payer_name,
+          claimed_amount_microunits, claimed_currency, receipt_document_id, idempotency_key, request_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, status`,
+        [application.tenant_id, id, invoice.id, body.transactionReference, body.paymentDate, body.payerName,
+         claimedAmount, claimedCurrency, document.rows[0].id, idempotencyKey, requestHash]
+      );
+      await client.query("UPDATE marketplace_invoice SET status = 'pending', version = version + 1 WHERE tenant_id = $1 AND id = $2 AND status = 'unpaid'", [application.tenant_id, invoice.id]);
+      await client.query("UPDATE subcontractor_application SET status = 'payment_pending', version = version + 1, updated_at = NOW() WHERE tenant_id = $1 AND id = $2 AND status = 'invoice_pending'", [application.tenant_id, id]);
+      await client.query("COMMIT");
+      return reply.status(201).send({ claimId: claim.rows[0].id, status: claim.rows[0].status });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      if (error.code === "23505") return reply.status(409).send({ error: "Duplicate transaction reference" });
+      throw error;
+    } finally { client.release(); }
+  });
+
+  app.get("/officer/marketplace/payment-claims", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const officer = await authenticateOfficer(req, reply, pool); if (!officer) return;
+    if (!(await hasMarketplacePaymentVerificationPermission(officer.userId, officer.tenantId))) return reply.status(403).send({ error: "Forbidden" });
+    const result = await pool.query(
+      `SELECT c.id, c.transaction_reference AS "transactionReference", c.payment_date AS "paymentDate", c.payer_name AS "payerName",
+              c.status, c.created_at AS "createdAt", i.invoice_number AS "invoiceNumber", i.amount_due_microunits AS "expectedAmountMicrounits",
+              i.currency, d.storage_key AS "receiptStorageKey", d.mime_type AS "receiptMimeType", d.size_bytes AS "receiptSizeBytes"
+       FROM marketplace_payment_claim c JOIN marketplace_invoice i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id
+       JOIN subcontractor_application_document d ON d.tenant_id=c.tenant_id AND d.id=c.receipt_document_id
+       WHERE c.tenant_id=$1 AND c.status='awaiting_verification' ORDER BY c.created_at`, [officer.tenantId]);
+    return reply.send({ claims: result.rows });
+  });
+
+  app.post("/officer/marketplace/payment-claims/:claimId/decision", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const { claimId } = req.params as { claimId: string }; const body = req.body as any;
+    const officer = await authenticateOfficer(req, reply, pool); if (!officer) return;
+    if (!(await hasMarketplacePaymentVerificationPermission(officer.userId, officer.tenantId))) return reply.status(403).send({ error: "Forbidden" });
+    if (!['confirm','reject'].includes(body.decision)) return reply.status(400).send({ error: "Decision must be confirm or reject" });
+    if (body.decision === 'reject' && !String(body.reason || '').trim()) return reply.status(400).send({ error: "Rejection reason is required" });
+    const result = await pool.query(
+      `SELECT c.*, i.amount_due_microunits, i.currency FROM marketplace_payment_claim c
+       JOIN marketplace_invoice i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id
+       WHERE c.id=$1 AND c.tenant_id=$2`, [claimId, officer.tenantId]);
+    if (!result.rows.length) return reply.status(404).send({ error: "Payment claim not found" });
+    const claim = result.rows[0];
+    if (claim.status !== 'awaiting_verification') return reply.status(409).send({ error: "Payment claim already decided" });
+    if (body.decision === 'reject') {
+      await pool.query(`UPDATE marketplace_payment_claim SET status='rejected', rejection_reason=$1, reviewed_by=$2, reviewed_at=NOW(), updated_at=NOW()
+                        WHERE id=$3 AND tenant_id=$4`, [body.reason.trim(), officer.userId, claimId, officer.tenantId]);
+      await pool.query(`INSERT INTO subcontractor_application_event
+        (tenant_id,application_id,actor_type,actor_id,previous_state,new_state,reason,correlation_id,event_type,event_key)
+        VALUES ($1,$2,'user',$3,'payment_pending','payment_pending',$4,$5,'payment.claim.rejected',$6)`,
+        [officer.tenantId, claim.application_id, officer.userId, body.reason.trim(), crypto.randomUUID(), `payment.claim.rejected:${claimId}`]);
+      return reply.send({ status: "rejected", label: "Rejected" });
+    }
+    if (Number(claim.claimed_amount_microunits) !== Number(claim.amount_due_microunits)) return reply.status(400).send({ error: "Amount mismatch" });
+    if (claim.claimed_currency !== claim.currency) return reply.status(400).send({ error: "Currency mismatch" });
+    const checkoutReference = `BANK-${claim.id}`;
+    await pool.query(`INSERT INTO marketplace_payment
+      (tenant_id,invoice_id,provider,provider_checkout_reference,amount_paid_microunits,currency,status)
+      VALUES ($1,$2,'bank_transfer',$3,$4,$5,'pending') ON CONFLICT (provider_checkout_reference) DO NOTHING`,
+      [officer.tenantId, claim.invoice_id, checkoutReference, claim.claimed_amount_microunits, claim.claimed_currency]);
+    const event = { id: `bank-claim-${claim.id}`, type: "checkout.session.completed", checkout_reference: checkoutReference,
+      transaction_reference: claim.transaction_reference, amount: Number(claim.claimed_amount_microunits), currency: claim.claimed_currency };
+    const raw = JSON.stringify(event); const secret = process.env.BANK_TRANSFER_RECONCILIATION_SECRET || "local-bank-transfer-secret";
+    const signature = crypto.createHmac("sha256", secret).update(raw).digest("hex");
+    await reconciliationService.processWebhook("bank_transfer", raw, signature, secret, event);
+    await pool.query(`UPDATE marketplace_payment_claim SET status='confirmed', reviewed_by=$1, reviewed_at=NOW(), updated_at=NOW()
+                      WHERE id=$2 AND tenant_id=$3`, [officer.userId, claimId, officer.tenantId]);
+    await pool.query(`INSERT INTO subcontractor_application_event
+      (tenant_id,application_id,actor_type,actor_id,previous_state,new_state,reason,correlation_id,event_type,event_key)
+      VALUES ($1,$2,'user',$3,'payment_pending','payment_confirmed','Bank transfer verified',$4,'payment.claim.confirmed',$5)
+      ON CONFLICT (tenant_id, application_id, event_key) DO NOTHING`,
+      [officer.tenantId, claim.application_id, officer.userId, crypto.randomUUID(), `payment.claim.confirmed:${claimId}`]);
+    return reply.send({ status: "confirmed", label: "Payment Confirmed", licenceIssuance: "asynchronous" });
+  });
+
   // Demo webhook bypass for guided presentation
   app.post("/marketplace/payments/demo-complete", async (req, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -674,8 +847,8 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
         type: "checkout.session.completed",
         checkout_reference: checkoutSessionId,
         transaction_reference: `tx-ref-demo-${crypto.randomUUID().substring(0, 6)}`,
-        amount: 500000000,
-        currency: "usd"
+        amount: Number(paymentQuery.rows[0].amount_paid_microunits),
+        currency: String(paymentQuery.rows[0].currency).toLowerCase()
       };
       const rawBody = JSON.stringify(webhookPayload);
       const secret = process.env.WEBHOOK_SECRET || "mock-secret-key";
