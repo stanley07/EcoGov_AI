@@ -50,6 +50,16 @@ export function LandingPage({
         padding: 0,
       }}
     >
+      <style>{`
+        .landing-action:focus-visible { outline: 3px solid #facc15; outline-offset: 3px; }
+        .landing-header-nav { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+        @media (max-width: 640px) {
+          .landing-header-inner { align-items: flex-start !important; flex-wrap: wrap; }
+          .landing-header-nav { width: 100%; justify-content: flex-start; }
+          .landing-header-nav .landing-action { flex: 1 1 145px; text-align: center; }
+          .landing-hero-actions .landing-action { width: 100%; min-width: 0 !important; }
+        }
+      `}</style>
       {/* Header */}
       <header
         style={{
@@ -62,6 +72,7 @@ export function LandingPage({
         }}
       >
         <div
+          className="landing-header-inner"
           style={{
             maxWidth: "1200px",
             width: "100%",
@@ -120,29 +131,12 @@ export function LandingPage({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsLoginModalOpen(true)}
-            style={{
-              padding: "10px 20px",
-              background: "#16a34a",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "7px",
-              fontWeight: 700,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              transition: "background 0.2s",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "#15803d";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "#16a34a";
-            }}
-          >
-            Portal Login
-          </button>
+          <nav className="landing-header-nav" aria-label="Public navigation">
+            <button type="button" className="landing-action" onClick={handleRegisterClick} style={{ minHeight: "44px", padding: "10px 12px", background: "transparent", color: "#166534", border: "1px solid #bbf7d0", borderRadius: "7px", fontWeight: 700, cursor: "pointer" }}>Facility Registration</button>
+            <a className="landing-action" href="#/subcontractor-apply" style={{ minHeight: "44px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", padding: "10px 12px", color: "#166534", borderRadius: "7px", fontWeight: 700, textDecoration: "none" }}>Become a Subcontractor</a>
+            <a className="landing-action" href="#/verify-licence" style={{ minHeight: "44px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", padding: "10px 12px", color: "#1e3a8a", borderRadius: "7px", fontWeight: 700, textDecoration: "none" }}>Verify Licence</a>
+            <button type="button" className="landing-action" onClick={() => setIsLoginModalOpen(true)} style={{ minHeight: "44px", padding: "10px 20px", background: "#16a34a", color: "#ffffff", border: "none", borderRadius: "7px", fontWeight: 700, cursor: "pointer" }}>Login</button>
+          </nav>
         </div>
       </header>
 
@@ -167,6 +161,7 @@ export function LandingPage({
 
           <button
             type="button"
+            className="landing-action"
             aria-label="Close notification"
             onClick={() => setActionAlert(null)}
             style={{
@@ -271,6 +266,7 @@ export function LandingPage({
 
         {/* Primary Calls to Action */}
         <div
+          className="landing-hero-actions"
           style={{
             width: "100%",
             display: "flex",
@@ -283,6 +279,8 @@ export function LandingPage({
         >
           <button
             type="button"
+            className="landing-action"
+            aria-label="Register Your Facility"
             onClick={handleRegisterClick}
             style={{
               minWidth: "265px",
@@ -307,12 +305,13 @@ export function LandingPage({
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            🏭 Register Facility
+            Register Your Facility
           </button>
 
-          <button
-            type="button"
-            onClick={() => handleAction("Report Environmental Issue")}
+          <a
+            className="landing-action"
+            href="#/subcontractor-apply"
+            aria-label="Become a Licensed Subcontractor"
             style={{
               minWidth: "315px",
               padding: "16px 32px",
@@ -322,7 +321,8 @@ export function LandingPage({
               borderRadius: "8px",
               fontSize: "1.05rem",
               fontWeight: 700,
-              cursor: "pointer",
+              textDecoration: "none",
+              boxSizing: "border-box",
               boxShadow: "0 4px 6px -1px rgba(30, 58, 138, 0.2)",
               transition:
                 "transform 0.2s, box-shadow 0.2s, background 0.2s",
@@ -336,11 +336,15 @@ export function LandingPage({
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            📢 Report Environmental Issue
-          </button>
+            Become a Licensed Subcontractor
+          </a>
+
+          <a className="landing-action" href="#/verify-licence" aria-label="Verify Licence" style={{ minWidth: "210px", minHeight: "56px", padding: "14px 28px", boxSizing: "border-box", display: "inline-flex", justifyContent: "center", alignItems: "center", color: "#1e3a8a", background: "#ffffff", border: "2px solid #1e3a8a", borderRadius: "8px", fontSize: "1.05rem", fontWeight: 700, textDecoration: "none" }}>
+            Verify Licence
+          </a>
         </div>
 
-        {/* Subcontractor Marketplace Onboarding Panel */}
+        {/* Public subcontractor acquisition section */}
         <div
           style={{
             background: "#ffffff",
@@ -349,6 +353,7 @@ export function LandingPage({
             padding: "24px 30px",
             maxWidth: "750px",
             width: "100%",
+            boxSizing: "border-box",
             margin: "0 auto 40px auto",
             boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
             textAlign: "left"
@@ -357,19 +362,33 @@ export function LandingPage({
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
             <span style={{ fontSize: "1.5rem" }}>💼</span>
             <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "#1e293b" }}>
-              Subcontractor Onboarding & Marketplace
+              Become an Environmental Operations Partner
             </h3>
           </div>
           <p style={{ margin: "0 0 20px 0", fontSize: "0.9rem", color: "#64748b", lineHeight: 1.5 }}>
-            Apply for waste collection or environmental consultant licences. Start a new application, resume a saved draft, or check your verification status.
+            Apply to join the EcoGov AI subcontractor network. Approved operators can receive a digital licence, assigned operational territory, access to facility registration tools, and a performance scorecard.
+          </p>
+          <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px 24px", margin: "0 0 22px", paddingLeft: "22px", color: "#334155", lineHeight: 1.5 }}>
+            <li>Digital subcontractor licence</li>
+            <li>Assigned LGA or cluster operations</li>
+            <li>AI-assisted onboarding and screening</li>
+            <li>Facility registration access</li>
+            <li>Performance and quality scorecards</li>
+            <li>Public QR licence verification</li>
+          </ul>
+          <p style={{ margin: "0 0 18px", color: "#475569", fontSize: "0.85rem", lineHeight: 1.6 }}>
+            Subject to screening and officer approval. Territory assignment where approved. Licence issued after successful approval and payment verification.
           </p>
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <a
-              href="#marketplace/apply"
+              className="landing-action"
+              href="#/subcontractor-apply"
+              aria-label="Apply as a Subcontractor"
               style={{
                 flex: 1,
                 minWidth: "160px",
                 padding: "12px 18px",
+                minHeight: "44px",
                 background: "#16a34a",
                 color: "#ffffff",
                 borderRadius: "6px",
@@ -382,10 +401,11 @@ export function LandingPage({
               onMouseOver={(e) => (e.currentTarget.style.background = "#15803d")}
               onMouseOut={(e) => (e.currentTarget.style.background = "#16a34a")}
             >
-              🚀 Start Application
+              Apply as a Subcontractor
             </a>
             <a
-              href="#marketplace/apply"
+              className="landing-action"
+              href="#/subcontractor-apply"
               style={{
                 flex: 1,
                 minWidth: "160px",
@@ -405,7 +425,8 @@ export function LandingPage({
               📝 Continue Saved Draft
             </a>
             <a
-              href="#marketplace/status"
+              className="landing-action"
+              href="#/marketplace/status"
               style={{
                 flex: 1,
                 minWidth: "160px",
@@ -462,7 +483,8 @@ export function LandingPage({
           <span aria-hidden="true">•</span>
 
           <a
-            href="#marketplace/apply"
+            className="landing-action"
+            href="#/subcontractor-apply"
             style={{
               color: "#16a34a",
               textDecoration: "none",
@@ -474,7 +496,8 @@ export function LandingPage({
           <span aria-hidden="true">•</span>
 
           <a
-            href="#marketplace/status"
+            className="landing-action"
+            href="#/marketplace/status"
             style={{
               color: "#64748b",
               textDecoration: "none",

@@ -4,7 +4,7 @@ export type AppTab =
   | "dashboard" | "registry" | "wizard" | "queue" | "settings" | "platform"
   | "subcontractor-apply" | "subcontractor-status" | "audits" | "inspections"
   | "incidents" | "permits" | "compliance" | "enforcement" | "waste"
-  | "monitoring" | "gis" | "reports" | "denied";
+  | "monitoring" | "gis" | "reports" | "verify-licence" | "denied";
 
 export type EcoGovRouteDefinition = {
   id: AppTab;
@@ -37,9 +37,10 @@ const routeMetadata: Record<AppTab, Pick<EcoGovRouteDefinition, "label" | "group
   reports: { label: "Roadmap Reports", group: "reports", breadcrumb: ["Reports", "Roadmap Reports"], order: 14, visibleInNavigation: true },
   "subcontractor-apply": { label: "Apply for Licence", group: "marketplace", breadcrumb: ["Marketplace", "Apply for Licence"], order: 15, visibleInNavigation: true },
   "subcontractor-status": { label: "Licence Status", group: "marketplace", breadcrumb: ["Marketplace", "Licence Status"], order: 16, visibleInNavigation: true },
-  platform: { label: "Platform Console", group: "administration", breadcrumb: ["Administration", "Platform Console"], order: 17, visibleInNavigation: true },
-  settings: { label: "Org Settings", group: "administration", breadcrumb: ["Administration", "Org Settings"], order: 18, visibleInNavigation: true },
-  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 19, visibleInNavigation: false },
+  "verify-licence": { label: "Verify Licence", group: "marketplace", breadcrumb: ["Marketplace", "Verify Licence"], order: 17, visibleInNavigation: false },
+  platform: { label: "Platform Console", group: "administration", breadcrumb: ["Administration", "Platform Console"], order: 18, visibleInNavigation: true },
+  settings: { label: "Org Settings", group: "administration", breadcrumb: ["Administration", "Org Settings"], order: 19, visibleInNavigation: true },
+  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 20, visibleInNavigation: false },
 };
 const defineRoute = (route: RouteInput): EcoGovRouteDefinition => ({ ...routeMetadata[route.id], ...route });
 
@@ -59,9 +60,11 @@ export const routesRegistry: readonly EcoGovRouteDefinition[] = ([
   { id: "monitoring", path: "#/monitoring", accessBoundary: "authenticated", requiredPermission: "ecogov.monitoring.read", implementationStatus: "planned" },
   { id: "gis", path: "#/gis", accessBoundary: "authenticated", requiredPermission: "facility:read", implementationStatus: "planned" },
   { id: "reports", path: "#/reports", accessBoundary: "authenticated", requiredPermission: "ecogov.reports.read", implementationStatus: "planned" },
+  { id: "subcontractor-apply", path: "#/subcontractor-apply", accessBoundary: "public", implementationStatus: "available" },
   { id: "subcontractor-apply", path: "#/marketplace/apply", accessBoundary: "public", implementationStatus: "available" },
   { id: "subcontractor-status", path: "#/marketplace/status", accessBoundary: "public", implementationStatus: "available" },
   { id: "subcontractor-status", path: "#/marketplace/status/:applicationId", accessBoundary: "public", implementationStatus: "available" },
+  { id: "verify-licence", path: "#/verify-licence", accessBoundary: "public", implementationStatus: "planned" },
   { id: "platform", path: "#/platform", accessBoundary: "platform_admin", implementationStatus: "available" },
   { id: "platform", path: "#/platform/:section", accessBoundary: "platform_admin", implementationStatus: "available" },
   { id: "settings", path: "#/settings", accessBoundary: "authenticated", implementationStatus: "available" },
@@ -71,7 +74,8 @@ export const routesRegistry: readonly EcoGovRouteDefinition[] = ([
 export const LEGACY_TAB_ROUTES: Readonly<Record<Exclude<AppTab, "denied">, string>> = {
   dashboard: "#/dashboard", registry: "#/facilities", wizard: "#/facilities/register",
   queue: "#/queue", settings: "#/settings", platform: "#/platform",
-  "subcontractor-apply": "#/marketplace/apply", "subcontractor-status": "#/marketplace/status",
+  "subcontractor-apply": "#/subcontractor-apply", "subcontractor-status": "#/marketplace/status",
+  "verify-licence": "#/verify-licence",
   audits: "#/operations/audits", inspections: "#/operations/inspections",
   incidents: "#/operations/incidents", permits: "#/operations/permits",
   compliance: "#/operations/compliance", enforcement: "#/operations/enforcement",

@@ -182,6 +182,8 @@ const getBreadcrumbs = (tab: string): string[] => {
       return ["EcoGov", "Marketplace", "Apply"];
     case "subcontractor-status":
       return ["EcoGov", "Marketplace", "Status"];
+    case "verify-licence":
+      return ["EcoGov", "Marketplace", "Verify Licence"];
     case "settings":
       return ["EcoGov", "Administration", "Settings"];
     case "platform":
@@ -227,6 +229,8 @@ const getPageTitle = (tab: string): string => {
       return "Apply for Licence";
     case "subcontractor-status":
       return "Licence Application Status";
+    case "verify-licence":
+      return "Verify Licence";
     case "settings":
       return "Organization Settings";
     case "platform":
@@ -454,6 +458,7 @@ function App() {
   if (!token || !user) {
     if (activeTab === "subcontractor-apply") return <ApplicationWizard />;
     if (activeTab === "subcontractor-status") return <ApplicationStatusPage />;
+    if (activeTab === "verify-licence") return <ModuleAvailabilityPanel title="Public Licence Verification" reason="module_not_enabled" description="The public licence checker route is reserved and will be activated when the verification interface is deployed." />;
     return (
       <LandingPage
         onLogin={handleLogin}
@@ -556,6 +561,10 @@ function App() {
         {/* Tab Subcontractor: Status */}
         {activeTab === "subcontractor-status" && (
           <ApplicationStatusPage />
+        )}
+
+        {activeTab === "verify-licence" && (
+          <ModuleAvailabilityPanel title="Public Licence Verification" reason="module_not_enabled" description="The public licence checker route is reserved and will be activated when the verification interface is deployed." />
         )}
 
         {/* Tab 0: Platform Admin Console */}
