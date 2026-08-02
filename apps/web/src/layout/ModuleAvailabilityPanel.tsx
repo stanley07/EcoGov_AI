@@ -13,41 +13,49 @@ export interface ModuleAvailabilityPanelProps {
   description?: string;
 }
 
-export const ModuleAvailabilityPanel: React.FC<ModuleAvailabilityPanelProps> = ({
-  title,
-  reason,
-  description,
-}) => {
+export const ModuleAvailabilityPanel: React.FC<
+  ModuleAvailabilityPanelProps
+> = ({ title, reason, description }) => {
   const getWording = () => {
     switch (reason) {
       case "module_not_implemented":
         return {
           header: `${title} is planned for a future milestone`,
-          sub: description || "This module is part of the EMIS v2.0 roadmap and is currently under active development. Keep track of system updates for deployment timelines.",
+          sub:
+            description ||
+            "This module is part of the EMIS v2.0 roadmap and is currently under active development. Keep track of system updates for deployment timelines.",
           icon: "🛠️",
         };
       case "module_not_enabled":
         return {
           header: `${title} is not yet activated for this workspace`,
-          sub: description || "This capability has not been enabled for your organization unit. Please reach out to your administrator to request activation.",
+          sub:
+            description ||
+            "This capability has not been enabled for your organization unit. Please reach out to your administrator to request activation.",
           icon: "⚙️",
         };
       case "permission_denied":
         return {
           header: `Access to ${title} restricted`,
-          sub: description || "You do not hold the required permission claims to view or access this environmental module.",
+          sub:
+            description ||
+            "You do not hold the required permission claims to view or access this environmental module.",
           icon: "🔒",
         };
       case "insufficient_data":
         return {
           header: `No metrics available for ${title}`,
-          sub: description || "The system requires additional environmental records to compute and display statistics for this module.",
+          sub:
+            description ||
+            "The system requires additional environmental records to compute and display statistics for this module.",
           icon: "📊",
         };
       case "timeline_service_not_activated":
         return {
           header: "Operational Timeline Service is not active",
-          sub: description || "The universal timeline service is scheduled for activation in EMIS-1C. Real-time logging is currently inactive.",
+          sub:
+            description ||
+            "The universal timeline service is scheduled for activation in EMIS-1C. Real-time logging is currently inactive.",
           icon: "⏳",
         };
       default:
@@ -63,6 +71,8 @@ export const ModuleAvailabilityPanel: React.FC<ModuleAvailabilityPanelProps> = (
 
   return (
     <div
+      role={reason === "permission_denied" ? "alert" : "status"}
+      aria-live="polite"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -79,11 +89,30 @@ export const ModuleAvailabilityPanel: React.FC<ModuleAvailabilityPanelProps> = (
         boxSizing: "border-box",
       }}
     >
-      <div style={{ fontSize: "3.5rem", marginBottom: "20px" }}>{wording.icon}</div>
-      <h2 style={{ fontSize: "1.4rem", fontWeight: "bold", margin: "0 0 12px 0", color: "#38bdf8" }}>
+      <div
+        aria-hidden="true"
+        style={{ fontSize: "3.5rem", marginBottom: "20px" }}
+      >
+        {wording.icon}
+      </div>
+      <h2
+        style={{
+          fontSize: "1.4rem",
+          fontWeight: "bold",
+          margin: "0 0 12px 0",
+          color: "#38bdf8",
+        }}
+      >
         {wording.header}
       </h2>
-      <p style={{ color: "#94a3b8", fontSize: "0.95rem", lineHeight: "1.6", margin: "0 0 28px 0" }}>
+      <p
+        style={{
+          color: "#94a3b8",
+          fontSize: "0.95rem",
+          lineHeight: "1.6",
+          margin: "0 0 28px 0",
+        }}
+      >
         {wording.sub}
       </p>
       <div

@@ -19,7 +19,12 @@ import { PageContainer } from "./layout/PageContainer.js";
 import { ModuleAvailabilityPanel } from "./layout/ModuleAvailabilityPanel.js";
 import { navigationGroups } from "./layout/navigationConfig.js";
 import { AccessDeniedPage } from "./layout/AccessDeniedPage.js";
-import { routesRegistry, validateAndStoreRedirect, consumeStoredRedirect, LEGACY_TAB_ROUTES } from "./layout/routes.js";
+import {
+  PLATFORM_ADMIN_NAV_PERMISSION,
+  SYSTEM_TENANT_ID,
+  canViewPlatformAdmin,
+  resolvePlatformPermissionClaims,
+} from "./layout/shellAuthorization.js";
 
 
 
@@ -72,6 +77,9 @@ interface Organization {
 
 export const resolveSessionPermissions = (roles: string[]): string[] => {
   const permissions = new Set<string>();
+  for (const permission of resolvePlatformPermissionClaims(roles)) {
+    permissions.add(permission);
+  }
   if (roles.includes("super_admin")) {
     permissions.add("org:read");
     permissions.add("org:write");
@@ -168,6 +176,8 @@ const getBreadcrumbs = (tab: string): string[] => {
       return ["EcoGov", "Administration", "Settings"];
     case "platform":
       return ["GovOS", "Platform Admin"];
+    case "denied":
+      return ["EcoGov", "Restricted"];
     case "audits":
       return ["EcoGov", "Operations", "Audits"];
     case "inspections":
@@ -211,6 +221,8 @@ const getPageTitle = (tab: string): string => {
       return "Organization Settings";
     case "platform":
       return "Platform Admin Console";
+    case "denied":
+      return "Access Restricted";
     case "audits":
       return "Environmental Audits";
     case "inspections":
@@ -269,7 +281,7 @@ function App() {
     const savedUser = localStorage.getItem("govos_user")
       ? JSON.parse(localStorage.getItem("govos_user")!)
       : null;
-    return savedUser?.tenantId === "00000000-0000-0000-0000-000000000000"
+    return savedUser && canViewPlatformAdmin(savedUser.tenantId, savedUser.roles)
       ? "platform"
       : "dashboard";
   });
@@ -350,7 +362,7 @@ function App() {
       localStorage.setItem("govos_user", JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      if (data.user.tenantId === "00000000-0000-0000-0000-000000000000") {
+      if (canViewPlatformAdmin(data.user.tenantId, data.user.roles)) {
         setActiveTab("platform");
       } else {
         setActiveTab("dashboard");
@@ -422,94 +434,6 @@ function App() {
     }
   }, [token, offset, sortBy, sortOrder, filterStatus, filterRisk, searchTerm]);
 
-  // Listen to hash changes and update activeTab
-  useEffect(() => {
-    // If not authenticated, store target path and show landing page
-    if (!token || !user) {
-      const currentHash = window.location.hash;
-      if (currentHash && currentHash.startsWith("#/")) {
-        validateAndStoreRedirect(currentHash);
-      }
-      return;
-    }
-
-    // Authenticated path redirection and resolution
-    const handleHashChange = () => {
-      const currentHash = window.location.hash || "#/";
-      
-      // If we just logged in, check for stored redirect first
-      const storedRedirect = consumeStoredRedirect();
-      if (storedRedirect && storedRedirect !== currentHash) {
-        window.location.hash = storedRedirect;
-        return;
-      }
-
-      // Find matching route in registry
-      const normalized = currentHash.split("?")[0];
-      
-      // Check legacy aliases first
-      let matchedRoute = routesRegistry.find(
-        (r) => r.path === normalized || r.legacyAliases?.some(alias => `#/${alias}` === normalized)
-      );
-
-      // Fallback matching logic for exact matching
-      if (!matchedRoute) {
-        // Match legacy tab routes table
-        const matchedLegacyKey = Object.keys(LEGACY_TAB_ROUTES).find(
-          (key) => LEGACY_TAB_ROUTES[key as keyof typeof LEGACY_TAB_ROUTES] === normalized
-        );
-        if (matchedLegacyKey) {
-          matchedRoute = routesRegistry.find((r) => r.id === matchedLegacyKey);
-        }
-      }
-
-      // Default route fallbacks
-      if (!matchedRoute || normalized === "#/") {
-        const defaultPath = user.tenantId === "00000000-0000-0000-0000-000000000000" ? "#/platform" : "#/dashboard";
-        if (window.location.hash !== defaultPath) {
-          window.location.hash = defaultPath;
-        }
-        return;
-      }
-
-      // Validate platform admin boundary
-      if (matchedRoute.accessBoundary === "platform_admin" && user.tenantId !== "00000000-0000-0000-0000-000000000000") {
-        setActiveTab("denied" as any);
-        return;
-      }
-
-      // Validate permissions
-      const userPermissions = resolveSessionPermissions(user.roles);
-      if (matchedRoute.requiredPermission && !userPermissions.includes(matchedRoute.requiredPermission)) {
-        setActiveTab("denied" as any);
-        return;
-      }
-
-      // Synchronize with state
-      if (activeTab !== matchedRoute.id) {
-        setActiveTab(matchedRoute.id as any);
-      }
-    };
-
-    // Run initially
-    handleHashChange();
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => {
-      window.removeEventListener("hashchange", handleHashChange);
-    };
-  }, [token, user, activeTab]);
-
-  // Synchronize activeTab changes back to window.location.hash
-  useEffect(() => {
-    if (!token || !user) return;
-    const currentHash = window.location.hash;
-    const matchedRoute = routesRegistry.find((r) => r.id === activeTab);
-    if (matchedRoute && matchedRoute.path !== currentHash) {
-      window.location.hash = matchedRoute.path;
-    }
-  }, [activeTab, token, user]);
-
   // Renders the public Landing Page if token is missing
   if (!token || !user) {
     return (
@@ -535,15 +459,18 @@ function App() {
 
   // Grouped Navigation Tree data mapped dynamically from configuration with permission filters
   const userPermissions = resolveSessionPermissions(user.roles);
+  const canAccessPlatformAdmin =
+    user.tenantId === SYSTEM_TENANT_ID &&
+    userPermissions.includes(PLATFORM_ADMIN_NAV_PERMISSION);
   const navGroups: ShellNavigationGroup[] = navigationGroups
     .map((group) => {
       const visibleItems = group.items
         .map((item) => {
           let isVisible = true;
           if (item.platformAdminOnly) {
-            isVisible = user.tenantId === "00000000-0000-0000-0000-000000000000";
+            isVisible = canAccessPlatformAdmin;
           } else {
-            if (item.tenantOnly && user.tenantId === "00000000-0000-0000-0000-000000000000") {
+            if (item.tenantOnly && user.tenantId === SYSTEM_TENANT_ID) {
               isVisible = false;
             }
             if (item.requiredPermission) {
@@ -618,8 +545,14 @@ function App() {
         )}
 
         {/* Tab 0: Platform Admin Console */}
-        {activeTab === "platform" && (
+        {activeTab === "platform" && canAccessPlatformAdmin && (
           <PlatformAdminConsole token={token!} />
+        )}
+
+        {activeTab === "platform" && !canAccessPlatformAdmin && (
+          <AccessDeniedPage
+            onBackToDashboard={() => setActiveTab("dashboard")}
+          />
         )}
 
         {/* Tab 1: Dashboard */}

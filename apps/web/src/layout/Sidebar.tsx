@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 
 export interface ShellNavigationItem {
   id: string;
@@ -30,10 +30,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userRoleContext,
   onLogout,
 }) => {
+  const navigationId = useId().replace(/:/g, "");
+  const [brandLogoFailed, setBrandLogoFailed] = useState(false);
   // Track expanded groups (default all expanded)
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
-    groups.reduce((acc, g) => ({ ...acc, [g.id]: true }), {})
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
+    () => groups.reduce((acc, g) => ({ ...acc, [g.id]: true }), {}),
   );
+
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const group of groups) {
+        if (next[group.id] === undefined) {
+          next[group.id] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [groups]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups((prev) => ({
@@ -65,20 +81,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
           flexShrink: 0,
         }}
       >
-        <img
-          src="/minEnv.jpg"
-          alt="Anambra State Ministry of Environment logo"
+        {brandLogoFailed ? (
+          <div
+            role="img"
+            aria-label="EcoGov AI logo"
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              background: "#0f172a",
+              color: "#38bdf8",
+              marginBottom: "12px",
+              border: "1px solid #38bdf8",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+            }}
+          >
+            EG
+          </div>
+        ) : (
+          <img
+            src="/minEnv.jpg"
+            alt="Anambra State Ministry of Environment logo"
+            onError={() => setBrandLogoFailed(true)}
+            style={{
+              width: "56px",
+              height: "56px",
+              objectFit: "contain",
+              borderRadius: "50%",
+              background: "white",
+              marginBottom: "12px",
+              border: "1px solid #334155",
+            }}
+          />
+        )}
+        <h2
           style={{
-            width: "56px",
-            height: "56px",
-            objectFit: "contain",
-            borderRadius: "50%",
-            background: "white",
-            marginBottom: "12px",
-            border: "1px solid #334155",
+            margin: 0,
+            fontSize: "1.4rem",
+            color: "#38bdf8",
+            textAlign: "center",
           }}
-        />
-        <h2 style={{ margin: 0, fontSize: "1.4rem", color: "#38bdf8", textAlign: "center" }}>
+        >
           EcoGov AI
         </h2>
         <span
@@ -96,7 +143,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
           title={tenantName}
         >
-          workspace:<br />
+          workspace:
+          <br />
           <strong>{tenantName}</strong>
         </span>
       </div>
@@ -111,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           flexDirection: "column",
           gap: "16px",
         }}
-        aria-label="Primary Navigation"
+        aria-label="Primary navigation"
       >
         {groups.map((group) => {
           const isExpanded = expandedGroups[group.id] !== false;
@@ -120,11 +168,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={group.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div
+              key={group.id}
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
               {/* Group Header Toggle Button (Min Height/Touch Target 44px) */}
               <button
                 onClick={() => toggleGroup(group.id)}
                 aria-expanded={isExpanded}
+                aria-controls={`${navigationId}-shell-navigation-group-${group.id}`}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -144,18 +196,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
               >
                 <span>{group.label}</span>
-                <span style={{ fontSize: "0.65rem", transition: "transform 0.2s", transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    transition: "transform 0.2s",
+                    transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)",
+                  }}
+                >
                   ▼
                 </span>
               </button>
 
               {/* Collapsible Group Items */}
               {isExpanded && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <div
+                  id={`${navigationId}-shell-navigation-group-${group.id}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                  }}
+                >
                   {visibleItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={item.onSelect}
+                      aria-current={item.isActive ? "page" : undefined}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -194,7 +260,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         e.currentTarget.style.boxShadow = "none";
                       }}
                     >
-                      {item.icon && <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>}
+                      {item.icon && (
+                        <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>
+                      )}
                       <span>{item.label}</span>
                     </button>
                   ))}
@@ -255,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             width: "100%",
             minHeight: "44px",
             padding: "10px",
-            background: "#f87171",
+            background: "#ef4444",
             color: "#0f172a",
             border: "none",
             borderRadius: "6px",

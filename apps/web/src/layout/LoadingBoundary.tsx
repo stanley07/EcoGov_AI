@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 export type LoadingVariant = "page" | "metric" | "table" | "card" | "profile";
 
@@ -13,6 +13,26 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
   variant = "page",
   children,
 }) => {
+  useEffect(() => {
+    if (
+      !isLoading ||
+      typeof document === "undefined" ||
+      document.getElementById("skeleton-animation-style")
+    ) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "skeleton-animation-style";
+    style.textContent = `
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }, [isLoading]);
+
   if (!isLoading) {
     return <>{children}</>;
   }
@@ -24,19 +44,6 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
     animation: "shimmer 1.5s infinite linear",
     borderRadius: "8px",
   };
-
-  // Add keyframe style dynamically to document head once
-  if (typeof document !== "undefined" && !document.getElementById("skeleton-animation-style")) {
-    const style = document.createElement("style");
-    style.id = "skeleton-animation-style";
-    style.innerHTML = `
-      @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
 
   const renderSkeleton = () => {
     switch (variant) {
@@ -56,8 +63,12 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
               gap: "12px",
             }}
           >
-            <div style={{ ...skeletonPulseStyle, width: "60%", height: "16px" }} />
-            <div style={{ ...skeletonPulseStyle, width: "40%", height: "32px" }} />
+            <div
+              style={{ ...skeletonPulseStyle, width: "60%", height: "16px" }}
+            />
+            <div
+              style={{ ...skeletonPulseStyle, width: "40%", height: "32px" }}
+            />
           </div>
         );
 
@@ -77,10 +88,23 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
               gap: "16px",
             }}
           >
-            <div style={{ ...skeletonPulseStyle, width: "50%", height: "20px" }} />
-            <div style={{ ...skeletonPulseStyle, width: "90%", height: "14px" }} />
-            <div style={{ ...skeletonPulseStyle, width: "80%", height: "14px" }} />
-            <div style={{ ...skeletonPulseStyle, width: "30%", height: "32px", marginTop: "auto" }} />
+            <div
+              style={{ ...skeletonPulseStyle, width: "50%", height: "20px" }}
+            />
+            <div
+              style={{ ...skeletonPulseStyle, width: "90%", height: "14px" }}
+            />
+            <div
+              style={{ ...skeletonPulseStyle, width: "80%", height: "14px" }}
+            />
+            <div
+              style={{
+                ...skeletonPulseStyle,
+                width: "30%",
+                height: "32px",
+                marginTop: "auto",
+              }}
+            />
           </div>
         );
 
@@ -98,11 +122,33 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
               gap: "24px",
             }}
           >
-            <div style={{ ...skeletonPulseStyle, width: "96px", height: "96px", borderRadius: "50%", flexShrink: 0 }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", flexGrow: 1, justifyContent: "center" }}>
-              <div style={{ ...skeletonPulseStyle, width: "40%", height: "24px" }} />
-              <div style={{ ...skeletonPulseStyle, width: "60%", height: "16px" }} />
-              <div style={{ ...skeletonPulseStyle, width: "20%", height: "16px" }} />
+            <div
+              style={{
+                ...skeletonPulseStyle,
+                width: "96px",
+                height: "96px",
+                borderRadius: "50%",
+                flexShrink: 0,
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                flexGrow: 1,
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{ ...skeletonPulseStyle, width: "40%", height: "24px" }}
+              />
+              <div
+                style={{ ...skeletonPulseStyle, width: "60%", height: "16px" }}
+              />
+              <div
+                style={{ ...skeletonPulseStyle, width: "20%", height: "16px" }}
+              />
             </div>
           </div>
         );
@@ -119,8 +165,19 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
               overflow: "hidden",
             }}
           >
-            <div style={{ height: "50px", background: "#0f172a", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", padding: "0 20px" }}>
-              <div style={{ ...skeletonPulseStyle, width: "20%", height: "16px" }} />
+            <div
+              style={{
+                height: "50px",
+                background: "#0f172a",
+                borderBottom: "1px solid #334155",
+                display: "flex",
+                alignItems: "center",
+                padding: "0 20px",
+              }}
+            >
+              <div
+                style={{ ...skeletonPulseStyle, width: "20%", height: "16px" }}
+              />
             </div>
             {[1, 2, 3, 4, 5].map((i) => (
               <div
@@ -134,11 +191,42 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
                   gap: "24px",
                 }}
               >
-                <div style={{ ...skeletonPulseStyle, width: "40px", height: "40px", flexShrink: 0 }} />
-                <div style={{ ...skeletonPulseStyle, width: "25%", height: "16px" }} />
-                <div style={{ ...skeletonPulseStyle, width: "15%", height: "16px" }} />
-                <div style={{ ...skeletonPulseStyle, width: "15%", height: "16px" }} />
-                <div style={{ ...skeletonPulseStyle, width: "35%", height: "16px" }} />
+                <div
+                  style={{
+                    ...skeletonPulseStyle,
+                    width: "40px",
+                    height: "40px",
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    ...skeletonPulseStyle,
+                    width: "25%",
+                    height: "16px",
+                  }}
+                />
+                <div
+                  style={{
+                    ...skeletonPulseStyle,
+                    width: "15%",
+                    height: "16px",
+                  }}
+                />
+                <div
+                  style={{
+                    ...skeletonPulseStyle,
+                    width: "15%",
+                    height: "16px",
+                  }}
+                />
+                <div
+                  style={{
+                    ...skeletonPulseStyle,
+                    width: "35%",
+                    height: "16px",
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -156,11 +244,23 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
               boxSizing: "border-box",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ ...skeletonPulseStyle, width: "30%", height: "36px" }} />
-              <div style={{ ...skeletonPulseStyle, width: "50%", height: "16px" }} />
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            >
+              <div
+                style={{ ...skeletonPulseStyle, width: "30%", height: "36px" }}
+              />
+              <div
+                style={{ ...skeletonPulseStyle, width: "50%", height: "16px" }}
+              />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "20px",
+              }}
+            >
               <div style={{ ...skeletonPulseStyle, height: "120px" }} />
               <div style={{ ...skeletonPulseStyle, height: "120px" }} />
               <div style={{ ...skeletonPulseStyle, height: "120px" }} />
@@ -171,5 +271,20 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
     }
   };
 
-  return renderSkeleton();
+  return (
+    <div role="status" aria-live="polite" aria-label="Loading">
+      <span
+        style={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+        }}
+      >
+        Loading
+      </span>
+      {renderSkeleton()}
+    </div>
+  );
 };

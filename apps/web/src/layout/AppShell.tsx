@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -11,22 +11,25 @@ export const AppShell: React.FC<AppShellProps> = ({
   children,
   sidebar,
   topBar,
+  pageTitle,
 }) => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const mainContentRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLDivElement | null>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const previousBodyOverflowRef = useRef("");
 
   // Toggle body scroll locking when mobile sidebar is toggled
   useEffect(() => {
     if (isMobileSidebarOpen) {
       previousActiveElementRef.current = document.activeElement as HTMLElement;
+      previousBodyOverflowRef.current = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      
+
       // Move focus to the drawer container or first focusable element
       if (drawerRef.current) {
         const focusableElements = drawerRef.current.querySelectorAll(
-          'a[href], button:not([disabled]), textarea, input, select, [tabindex="0"]'
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex="0"]',
         );
         if (focusableElements.length > 0) {
           (focusableElements[0] as HTMLElement).focus();
@@ -35,7 +38,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         }
       }
     } else {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousBodyOverflowRef.current;
       // Restore focus to the toggle button
       if (previousActiveElementRef.current) {
         previousActiveElementRef.current.focus();
@@ -43,7 +46,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     }
 
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousBodyOverflowRef.current;
     };
   }, [isMobileSidebarOpen]);
 
@@ -59,8 +62,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     if (e.key === "Tab" && drawerRef.current) {
       const focusable = Array.from(
         drawerRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), textarea, input, select, [tabindex="0"]'
-        )
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex="0"]',
+        ),
       );
       if (focusable.length === 0) return;
 
@@ -93,8 +96,11 @@ export const AppShell: React.FC<AppShellProps> = ({
   };
 
   // Inject mobile toggle callback into TopBar if it is a React component
-  const clonedTopBar = React.isValidElement(topBar)
-    ? React.cloneElement(topBar as React.ReactElement<any>, {
+  const clonedTopBar = React.isValidElement<{
+    onOpenMobileSidebar?: () => void;
+    isMobileSidebarOpen?: boolean;
+  }>(topBar)
+    ? React.cloneElement(topBar, {
         onOpenMobileSidebar: () => setIsMobileSidebarOpen(true),
         isMobileSidebarOpen: isMobileSidebarOpen,
       })
@@ -177,6 +183,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           id="main-content"
           ref={mainContentRef}
           tabIndex={-1}
+          aria-label={pageTitle}
           style={{
             flex: 1,
             outline: "none",
@@ -199,10 +206,14 @@ export const AppShell: React.FC<AppShellProps> = ({
             display: "flex",
           }}
           id="mobile-sidebar-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
         >
           {/* Backdrop (Dark tint overlay) */}
           <div
             onClick={() => setIsMobileSidebarOpen(false)}
+            aria-hidden="true"
             style={{
               position: "absolute",
               inset: 0,
@@ -229,7 +240,14 @@ export const AppShell: React.FC<AppShellProps> = ({
             }}
           >
             {/* Close toggle button inside drawer header */}
-            <div style={{ padding: "16px", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+            <div
+              style={{
+                padding: "16px",
+                display: "flex",
+                justifyContent: "flex-end",
+                flexShrink: 0,
+              }}
+            >
               <button
                 onClick={() => setIsMobileSidebarOpen(false)}
                 aria-label="Close navigation menu"
@@ -260,9 +278,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
 
             {/* Sidebar content container */}
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {sidebar}
-            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>{sidebar}</div>
           </div>
         </div>
       )}

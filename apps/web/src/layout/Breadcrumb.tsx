@@ -5,7 +5,10 @@ export interface BreadcrumbProps {
   onNavigateItem?: (item: string) => void;
 }
 
-export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem }) => {
+export const Breadcrumb: React.FC<BreadcrumbProps> = ({
+  items,
+  onNavigateItem,
+}) => {
   if (items.length === 0) return null;
 
   return (
@@ -25,8 +28,12 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
         const isLast = index === items.length - 1;
 
         return (
-          <React.Fragment key={item}>
-            {index > 0 && <span style={{ color: "#475569" }}>/</span>}
+          <React.Fragment key={`${item}-${index}`}>
+            {index > 0 && (
+              <span aria-hidden="true" style={{ color: "#475569" }}>
+                /
+              </span>
+            )}
             {isLast ? (
               <span
                 aria-current="page"
@@ -39,6 +46,8 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
               </span>
             ) : (
               <button
+                type="button"
+                className="shell-breadcrumb-button"
                 onClick={() => onNavigateItem?.(item)}
                 style={{
                   background: "transparent",
@@ -50,8 +59,12 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
                   textDecoration: "none",
                   fontWeight: 500,
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                onMouseOut={(e) => (e.currentTarget.style.textDecoration = "none")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.textDecoration = "underline")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.textDecoration = "none")
+                }
               >
                 {item}
               </button>
@@ -59,6 +72,13 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
           </React.Fragment>
         );
       })}
+      <style>{`
+        .shell-breadcrumb-button:focus-visible {
+          outline: 3px solid #f8fafc;
+          outline-offset: 3px;
+          border-radius: 2px;
+        }
+      `}</style>
     </nav>
   );
 };

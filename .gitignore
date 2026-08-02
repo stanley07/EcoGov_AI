@@ -31,6 +31,12 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Local PostgreSQL test database and runtime files
+scratch/pg_data/
+scratch/pg_log*.txt
+scratch/pg_err*.txt
+*.pid
+
 # Databases / Docker local data
 postgres-data/
 
