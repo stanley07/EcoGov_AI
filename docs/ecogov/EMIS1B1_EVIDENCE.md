@@ -55,14 +55,26 @@ The EMIS-1B.1 integration contains no `HashRouter`, route-registry import, `hash
 
 | Command | Exit code | Result |
 | --- | ---: | --- |
-| `node run_with_env.js npx.cmd vitest run --fileParallelism=false` | 1 | 57 test files; 24 passed, 33 failed. 251 tests; 135 passed, 77 failed, 39 skipped. All observed failures were integration tests attempting to connect to unavailable PostgreSQL at `127.0.0.1:5433`. Frontend tests passed. |
+| `node run_with_env.js npx vitest run --pool=threads --poolOptions.threads.maxThreads=1 --poolOptions.threads.minThreads=1` | 0 | Authoritative sequential suite passed: 57/57 test files and 251/251 tests in 135.16 seconds. No tests failed or were skipped. |
 | `npx.cmd tsc --noEmit --project apps/web/tsconfig.json` | 0 | EMIS-1B.1 web TypeScript check passed with no diagnostics. |
-| `npm.cmd run build` | 1 | Root build stopped in the root TypeScript build on existing `packages/ai/dist` TS5055 collisions and existing marketplace test type diagnostics. |
+| `npm run build` | 1 | PowerShell selected the disabled `npm.ps1` shim before npm executed. The command was rerun through `cmd.exe` as described below. |
+| `cmd.exe /d /s /c "npm run build"` | 1 | Root build ran and stopped in the root composite TypeScript build on pre-existing `packages/ai/dist` TS5055 collisions and existing marketplace test type diagnostics. The diagnostic paths are unchanged from `main` and do not include EMIS-1B.1 files. |
+| `cmd.exe /d /s /c "npx tsc --noEmit"` | 0 | Repository root no-emit TypeScript check passed with no diagnostics. |
 | `npm.cmd run build --workspace=@govos/web` | 0 | Phase-specific production build passed: 63 modules transformed; `dist/index.html` 0.88 kB and JS bundle 378.10 kB (93.61 kB gzip). |
 | `git diff --name-status main -- packages/ai packages/testing/src/facility-thumbnails.test.ts packages/testing/src/fixtures/marketplace-demo-scenario.ts packages/testing/src/subcontractor-marketplace-e2e.test.ts packages/testing/src/subcontractor-marketplace-resilience.test.ts` | 0 | No output: every path producing the root TypeScript diagnostics is unchanged from clean `main`. |
 | `git diff --check` | 0 | No whitespace errors. |
 
-The required full Vitest run could not be made green because Docker was not running and no process was listening on port 5433. No database/service changes were made to bypass that environmental dependency.
+## PostgreSQL verification
+
+A read-only runtime query connected to `govos_db` on `127.0.0.1:5433` and executed `SELECT version(), pg_backend_pid()` successfully:
+
+- Version: PostgreSQL 18.4, 64-bit Windows build
+- Database: `govos_db`
+- Port: 5433
+- Backend PID observed during verification: 11256
+- Connection/result status: passed (exit code 0)
+
+The restored database resolved all prior connection failures. The authoritative sequential suite now passes in full.
 
 ## Accessibility evidence
 
@@ -113,8 +125,11 @@ This evidence is based on the implemented deterministic CSS breakpoint and sizin
 
 - URL/deep-link routing is intentionally absent; `activeTab` is in-memory navigation state.
 - The repository has no configured browser screenshot/a11y automation, so viewport and interaction evidence is code-path/static-CSS verification rather than screenshot baselines.
-- Full integration tests require PostgreSQL on `127.0.0.1:5433`; Docker was unavailable during this verification.
-- The root build has pre-existing TypeScript failures in paths identical to `main`; the scoped web TypeScript check and web production build pass.
+- The root composite build has pre-existing TypeScript failures in paths identical to `main`; root no-emit TypeScript, scoped web TypeScript, the web production build, and the full test suite pass.
+
+## Final gate status
+
+**EMIS-1B.1 gate: PASS.** The authoritative test suite, repository no-emit TypeScript check, scoped web TypeScript check, and scoped production build are green. The root composite build remains blocked only by confirmed baseline diagnostics outside EMIS-1B.1; no unrelated fixes were made.
 
 ## Working-tree status
 
