@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 
 export interface ShellNavigationItem {
   id: string;
@@ -30,9 +30,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userRoleContext,
   onLogout,
 }) => {
+  const navigationId = useId().replace(/:/g, "");
   // Track expanded groups (default all expanded)
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
-    groups.reduce((acc, g) => ({ ...acc, [g.id]: true }), {})
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
+    () => groups.reduce((acc, g) => ({ ...acc, [g.id]: true }), {}),
   );
 
   useEffect(() => {
@@ -92,7 +93,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             border: "1px solid #334155",
           }}
         />
-        <h2 style={{ margin: 0, fontSize: "1.4rem", color: "#38bdf8", textAlign: "center" }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "1.4rem",
+            color: "#38bdf8",
+            textAlign: "center",
+          }}
+        >
           EcoGov AI
         </h2>
         <span
@@ -110,7 +118,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
           title={tenantName}
         >
-          workspace:<br />
+          workspace:
+          <br />
           <strong>{tenantName}</strong>
         </span>
       </div>
@@ -134,12 +143,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={group.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div
+              key={group.id}
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
               {/* Group Header Toggle Button (Min Height/Touch Target 44px) */}
               <button
                 onClick={() => toggleGroup(group.id)}
                 aria-expanded={isExpanded}
-                aria-controls={`shell-navigation-group-${group.id}`}
+                aria-controls={`${navigationId}-shell-navigation-group-${group.id}`}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -159,7 +171,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
               >
                 <span>{group.label}</span>
-                <span style={{ fontSize: "0.65rem", transition: "transform 0.2s", transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    transition: "transform 0.2s",
+                    transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)",
+                  }}
+                >
                   ▼
                 </span>
               </button>
@@ -167,8 +185,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Collapsible Group Items */}
               {isExpanded && (
                 <div
-                  id={`shell-navigation-group-${group.id}`}
-                  style={{ display: "flex", flexDirection: "column", gap: "2px" }}
+                  id={`${navigationId}-shell-navigation-group-${group.id}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                  }}
                 >
                   {visibleItems.map((item) => (
                     <button
@@ -213,7 +235,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         e.currentTarget.style.boxShadow = "none";
                       }}
                     >
-                      {item.icon && <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>}
+                      {item.icon && (
+                        <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>
+                      )}
                       <span>{item.label}</span>
                     </button>
                   ))}

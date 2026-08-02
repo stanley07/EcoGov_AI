@@ -116,7 +116,13 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {/* User identification */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+          }}
+        >
           <span
             style={{
               fontSize: "0.85rem",
@@ -144,7 +150,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </span>
         </div>
       </div>
-      
+
       {/* Media query styling for responsive toggle */}
       <style>{`
         @media (max-width: 1024px) {

@@ -19,7 +19,6 @@ import { PageContainer } from "./layout/PageContainer.js";
 import { ModuleAvailabilityPanel } from "./layout/ModuleAvailabilityPanel.js";
 import { navigationGroups } from "./layout/navigationConfig.js";
 import { AccessDeniedPage } from "./layout/AccessDeniedPage.js";
-import { routesRegistry, validateAndStoreRedirect, consumeStoredRedirect, LEGACY_TAB_ROUTES } from "./layout/routes.js";
 
 
 
@@ -421,94 +420,6 @@ function App() {
       fetchData();
     }
   }, [token, offset, sortBy, sortOrder, filterStatus, filterRisk, searchTerm]);
-
-  // Listen to hash changes and update activeTab
-  useEffect(() => {
-    // If not authenticated, store target path and show landing page
-    if (!token || !user) {
-      const currentHash = window.location.hash;
-      if (currentHash && currentHash.startsWith("#/")) {
-        validateAndStoreRedirect(currentHash);
-      }
-      return;
-    }
-
-    // Authenticated path redirection and resolution
-    const handleHashChange = () => {
-      const currentHash = window.location.hash || "#/";
-      
-      // If we just logged in, check for stored redirect first
-      const storedRedirect = consumeStoredRedirect();
-      if (storedRedirect && storedRedirect !== currentHash) {
-        window.location.hash = storedRedirect;
-        return;
-      }
-
-      // Find matching route in registry
-      const normalized = currentHash.split("?")[0];
-      
-      // Check legacy aliases first
-      let matchedRoute = routesRegistry.find(
-        (r) => r.path === normalized || r.legacyAliases?.some(alias => `#/${alias}` === normalized)
-      );
-
-      // Fallback matching logic for exact matching
-      if (!matchedRoute) {
-        // Match legacy tab routes table
-        const matchedLegacyKey = Object.keys(LEGACY_TAB_ROUTES).find(
-          (key) => LEGACY_TAB_ROUTES[key as keyof typeof LEGACY_TAB_ROUTES] === normalized
-        );
-        if (matchedLegacyKey) {
-          matchedRoute = routesRegistry.find((r) => r.id === matchedLegacyKey);
-        }
-      }
-
-      // Default route fallbacks
-      if (!matchedRoute || normalized === "#/") {
-        const defaultPath = user.tenantId === "00000000-0000-0000-0000-000000000000" ? "#/platform" : "#/dashboard";
-        if (window.location.hash !== defaultPath) {
-          window.location.hash = defaultPath;
-        }
-        return;
-      }
-
-      // Validate platform admin boundary
-      if (matchedRoute.accessBoundary === "platform_admin" && user.tenantId !== "00000000-0000-0000-0000-000000000000") {
-        setActiveTab("denied" as any);
-        return;
-      }
-
-      // Validate permissions
-      const userPermissions = resolveSessionPermissions(user.roles);
-      if (matchedRoute.requiredPermission && !userPermissions.includes(matchedRoute.requiredPermission)) {
-        setActiveTab("denied" as any);
-        return;
-      }
-
-      // Synchronize with state
-      if (activeTab !== matchedRoute.id) {
-        setActiveTab(matchedRoute.id as any);
-      }
-    };
-
-    // Run initially
-    handleHashChange();
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => {
-      window.removeEventListener("hashchange", handleHashChange);
-    };
-  }, [token, user, activeTab]);
-
-  // Synchronize activeTab changes back to window.location.hash
-  useEffect(() => {
-    if (!token || !user) return;
-    const currentHash = window.location.hash;
-    const matchedRoute = routesRegistry.find((r) => r.id === activeTab);
-    if (matchedRoute && matchedRoute.path !== currentHash) {
-      window.location.hash = matchedRoute.path;
-    }
-  }, [activeTab, token, user]);
 
   // Renders the public Landing Page if token is missing
   if (!token || !user) {

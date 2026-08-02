@@ -33,7 +33,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   private handleGoHome = () => {
     this.setState({ hasError: false, error: null });
     if (typeof window !== "undefined") {
-      window.location.hash = "#/dashboard";
+      window.location.reload();
     }
   };
 
@@ -60,15 +60,36 @@ export class AppErrorBoundary extends Component<Props, State> {
             margin: "20px",
           }}
         >
-          <div style={{ fontSize: "3rem", marginBottom: "16px" }}>⚠️</div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", margin: "0 0 12px 0", color: "#f87171" }}>
+          <div
+            aria-hidden="true"
+            style={{ fontSize: "3rem", marginBottom: "16px" }}
+          >
+            ⚠️
+          </div>
+          <h2
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: "bold",
+              margin: "0 0 12px 0",
+              color: "#f87171",
+            }}
+          >
             Something went wrong
           </h2>
-          <p style={{ color: "#94a3b8", maxWidth: "500px", margin: "0 0 24px 0", fontSize: "0.95rem" }}>
-            An unexpected error occurred while rendering this module. Safe diagnostics state has been engaged.
+          <p
+            style={{
+              color: "#94a3b8",
+              maxWidth: "500px",
+              margin: "0 0 24px 0",
+              fontSize: "0.95rem",
+            }}
+          >
+            An unexpected error occurred while rendering this module. Safe
+            diagnostics state has been engaged.
           </p>
           <div style={{ display: "flex", gap: "12px" }}>
             <button
+              type="button"
               onClick={this.handleReset}
               style={{
                 padding: "10px 20px",
@@ -81,10 +102,17 @@ export class AppErrorBoundary extends Component<Props, State> {
                 minWidth: "120px",
                 fontSize: "0.9rem",
               }}
+              onFocus={(event) => {
+                event.currentTarget.style.boxShadow = "0 0 0 3px #7dd3fc";
+              }}
+              onBlur={(event) => {
+                event.currentTarget.style.boxShadow = "none";
+              }}
             >
               Retry Load
             </button>
             <button
+              type="button"
               onClick={this.handleGoHome}
               style={{
                 padding: "10px 20px",
@@ -96,6 +124,12 @@ export class AppErrorBoundary extends Component<Props, State> {
                 cursor: "pointer",
                 minWidth: "120px",
                 fontSize: "0.9rem",
+              }}
+              onFocus={(event) => {
+                event.currentTarget.style.boxShadow = "0 0 0 3px #7dd3fc";
+              }}
+              onBlur={(event) => {
+                event.currentTarget.style.boxShadow = "none";
               }}
             >
               Go to Dashboard

@@ -5,7 +5,10 @@ export interface BreadcrumbProps {
   onNavigateItem?: (item: string) => void;
 }
 
-export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem }) => {
+export const Breadcrumb: React.FC<BreadcrumbProps> = ({
+  items,
+  onNavigateItem,
+}) => {
   if (items.length === 0) return null;
 
   return (
@@ -26,7 +29,11 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
 
         return (
           <React.Fragment key={`${item}-${index}`}>
-            {index > 0 && <span aria-hidden="true" style={{ color: "#475569" }}>/</span>}
+            {index > 0 && (
+              <span aria-hidden="true" style={{ color: "#475569" }}>
+                /
+              </span>
+            )}
             {isLast ? (
               <span
                 aria-current="page"
@@ -51,8 +58,12 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
                   textDecoration: "none",
                   fontWeight: 500,
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                onMouseOut={(e) => (e.currentTarget.style.textDecoration = "none")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.textDecoration = "underline")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.textDecoration = "none")
+                }
               >
                 {item}
               </button>

@@ -6,7 +6,10 @@ export interface PageContainerProps {
   labelledBy?: string;
 }
 
-export const PageContainer: React.FC<PageContainerProps> = ({ children, labelledBy }) => {
+export const PageContainer: React.FC<PageContainerProps> = ({
+  children,
+  labelledBy,
+}) => {
   return (
     <AppErrorBoundary>
       <div
