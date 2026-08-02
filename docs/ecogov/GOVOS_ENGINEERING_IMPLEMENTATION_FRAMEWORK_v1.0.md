@@ -2,6 +2,17 @@
 
 ## Purpose
 
+# Mandatory Notice
+
+This document is authoritative.
+
+All AI agents working on GovOS—including Codex, Antigravity, ChatGPT, and
+future contributors—must read and comply with this framework before making
+changes to the repository.
+
+No milestone may be declared complete unless all mandatory requirements in
+this framework have been satisfied.
+
 This document defines the mandatory implementation, verification,
 review, and release workflow for all future GovOS and EcoGov AI
 milestones.
