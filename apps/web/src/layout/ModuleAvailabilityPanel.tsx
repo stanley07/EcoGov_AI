@@ -63,6 +63,8 @@ export const ModuleAvailabilityPanel: React.FC<ModuleAvailabilityPanelProps> = (
 
   return (
     <div
+      role={reason === "permission_denied" ? "alert" : "status"}
+      aria-live="polite"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -79,7 +81,7 @@ export const ModuleAvailabilityPanel: React.FC<ModuleAvailabilityPanelProps> = (
         boxSizing: "border-box",
       }}
     >
-      <div style={{ fontSize: "3.5rem", marginBottom: "20px" }}>{wording.icon}</div>
+      <div aria-hidden="true" style={{ fontSize: "3.5rem", marginBottom: "20px" }}>{wording.icon}</div>
       <h2 style={{ fontSize: "1.4rem", fontWeight: "bold", margin: "0 0 12px 0", color: "#38bdf8" }}>
         {wording.header}
       </h2>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 export type LoadingVariant = "page" | "metric" | "table" | "card" | "profile";
 
@@ -13,6 +13,22 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
   variant = "page",
   children,
 }) => {
+  useEffect(() => {
+    if (!isLoading || typeof document === "undefined" || document.getElementById("skeleton-animation-style")) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "skeleton-animation-style";
+    style.textContent = `
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }, [isLoading]);
+
   if (!isLoading) {
     return <>{children}</>;
   }
@@ -24,19 +40,6 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
     animation: "shimmer 1.5s infinite linear",
     borderRadius: "8px",
   };
-
-  // Add keyframe style dynamically to document head once
-  if (typeof document !== "undefined" && !document.getElementById("skeleton-animation-style")) {
-    const style = document.createElement("style");
-    style.id = "skeleton-animation-style";
-    style.innerHTML = `
-      @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
 
   const renderSkeleton = () => {
     switch (variant) {
@@ -171,5 +174,12 @@ export const LoadingBoundary: React.FC<LoadingBoundaryProps> = ({
     }
   };
 
-  return renderSkeleton();
+  return (
+    <div role="status" aria-live="polite" aria-label="Loading">
+      <span style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+        Loading
+      </span>
+      {renderSkeleton()}
+    </div>
+  );
 };

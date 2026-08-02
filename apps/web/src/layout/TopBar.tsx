@@ -22,6 +22,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   return (
     <header
+      aria-label="Application header"
       style={{
         height: "70px",
         background: "#1e293b",
@@ -42,6 +43,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           aria-expanded={isMobileSidebarOpen}
           aria-controls="mobile-sidebar-drawer"
           aria-label="Open navigation menu"
+          disabled={isMobileSidebarOpen}
           style={{
             display: "none", // Managed by media queries in layout container
             alignItems: "center",

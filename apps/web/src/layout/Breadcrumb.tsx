@@ -25,8 +25,8 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
         const isLast = index === items.length - 1;
 
         return (
-          <React.Fragment key={item}>
-            {index > 0 && <span style={{ color: "#475569" }}>/</span>}
+          <React.Fragment key={`${item}-${index}`}>
+            {index > 0 && <span aria-hidden="true" style={{ color: "#475569" }}>/</span>}
             {isLast ? (
               <span
                 aria-current="page"
@@ -39,6 +39,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigateItem })
               </span>
             ) : (
               <button
+                type="button"
                 onClick={() => onNavigateItem?.(item)}
                 style={{
                   background: "transparent",

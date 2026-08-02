@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -11,6 +11,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   children,
   sidebar,
   topBar,
+  pageTitle,
 }) => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const mainContentRef = useRef<HTMLDivElement | null>(null);
@@ -93,8 +94,11 @@ export const AppShell: React.FC<AppShellProps> = ({
   };
 
   // Inject mobile toggle callback into TopBar if it is a React component
-  const clonedTopBar = React.isValidElement(topBar)
-    ? React.cloneElement(topBar as React.ReactElement<any>, {
+  const clonedTopBar = React.isValidElement<{
+    onOpenMobileSidebar?: () => void;
+    isMobileSidebarOpen?: boolean;
+  }>(topBar)
+    ? React.cloneElement(topBar, {
         onOpenMobileSidebar: () => setIsMobileSidebarOpen(true),
         isMobileSidebarOpen: isMobileSidebarOpen,
       })
@@ -177,6 +181,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           id="main-content"
           ref={mainContentRef}
           tabIndex={-1}
+          aria-label={pageTitle}
           style={{
             flex: 1,
             outline: "none",
@@ -199,10 +204,14 @@ export const AppShell: React.FC<AppShellProps> = ({
             display: "flex",
           }}
           id="mobile-sidebar-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
         >
           {/* Backdrop (Dark tint overlay) */}
           <div
             onClick={() => setIsMobileSidebarOpen(false)}
+            aria-hidden="true"
             style={{
               position: "absolute",
               inset: 0,

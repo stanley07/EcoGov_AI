@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 export interface ShellNavigationItem {
   id: string;
@@ -34,6 +34,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
     groups.reduce((acc, g) => ({ ...acc, [g.id]: true }), {})
   );
+
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const group of groups) {
+        if (next[group.id] === undefined) {
+          next[group.id] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [groups]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups((prev) => ({
@@ -111,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           flexDirection: "column",
           gap: "16px",
         }}
-        aria-label="Primary Navigation"
+        aria-label="Primary navigation"
       >
         {groups.map((group) => {
           const isExpanded = expandedGroups[group.id] !== false;
@@ -125,6 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={() => toggleGroup(group.id)}
                 aria-expanded={isExpanded}
+                aria-controls={`shell-navigation-group-${group.id}`}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -151,11 +166,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Collapsible Group Items */}
               {isExpanded && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <div
+                  id={`shell-navigation-group-${group.id}`}
+                  style={{ display: "flex", flexDirection: "column", gap: "2px" }}
+                >
                   {visibleItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={item.onSelect}
+                      aria-current={item.isActive ? "page" : undefined}
                       style={{
                         display: "flex",
                         alignItems: "center",
