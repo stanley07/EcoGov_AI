@@ -131,6 +131,44 @@ This evidence is based on the implemented deterministic CSS breakpoint and sizin
 
 **EMIS-1B.1 gate: PASS.** The authoritative test suite, repository no-emit TypeScript check, scoped web TypeScript check, and scoped production build are green. The root composite build remains blocked only by confirmed baseline diagnostics outside EMIS-1B.1; no unrelated fixes were made.
 
+## P1 findings and safe P2 cleanup verification
+
+Follow-up implementation commit: `09c5ed911f7b059ade3bf7ac6f3e4e422d9f6b1e`
+
+### Exact files changed
+
+- `apps/web/src/layout/Breadcrumb.tsx`
+- `apps/web/src/layout/Sidebar.tsx`
+- `apps/web/src/layout/shellAuthorization.ts`
+- `apps/web/src/layout/shellAuthorization.test.ts`
+- `apps/web/src/main.tsx`
+- `docs/ecogov/EMIS1B1_EVIDENCE.md` (evidence follow-up)
+
+### Findings resolved
+
+- P1 breadcrumb focus: interactive breadcrumb buttons now use a CSS `:focus-visible` rule with a three-pixel high-contrast outline and offset. The style is keyboard-triggered, independent of hover, and does not alter layout geometry.
+- P1 Platform Admin visibility: shell visibility now requires both canonical `SYSTEM_TENANT_ID` membership and the exact resolved `PlatformPermission.TENANT_READ` claim from the existing `PLATFORM_ROLE_PERMISSIONS` contract. There is no ad hoc direct role-name authorization check. The browser gate hides navigation and content; backend APIs remain authoritative.
+- P2 `pageTitle`: retained because `AppShell` uses it meaningfully as the accessible label for `main#main-content`.
+- P2 mobile backdrop: confirmed `aria-hidden="true"` is present while backdrop-click close remains intact; no additional code change was necessary.
+- P2 logout colors: default is `#ef4444`, hover is `#f87171`, and mouse leave restores `#ef4444`.
+- P2 denied metadata: `denied` explicitly resolves to title `Access Restricted` and breadcrumbs `EcoGov / Restricted`.
+- P2 brand failure: `/minEnv.jpg` failure switches once to a CSS/text `EG` branded placeholder; the failed image is removed, preventing an error loop.
+
+### Follow-up commands and results
+
+| Command | Exit code | Result |
+| --- | ---: | --- |
+| `node run_with_env.js npx.cmd vitest run apps/web/src/layout/shellAuthorization.test.ts packages/testing/src/platform-admin-permissions.test.ts packages/testing/src/architecture.test.ts --fileParallelism=false` | 0 | Focused shell, backend permission, and architecture verification passed: 3/3 files and 8/8 tests. This proves system-tenant denial without platform permission, authorized platform-admin visibility, ordinary-tenant denial, and backend 403 enforcement. |
+| `node run_with_env.js npx.cmd vitest run --fileParallelism=false` | 0 | Final authoritative sequential suite passed: 58/58 files and 254/254 tests in 131.42 seconds. |
+| `npx.cmd tsc --noEmit --project apps/web/tsconfig.json` | 0 | Web TypeScript passed with no diagnostics. |
+| `npm.cmd run build` | 1 | Root composite build remains stopped by the previously confirmed baseline `packages/ai/dist` TS5055 collisions and unrelated marketplace test type diagnostics; no EMIS-1B.1 path is reported. |
+| `npm.cmd run build --workspace=@govos/web` | 0 | Scoped production build passed: 65 modules transformed in 2.68 seconds; JS bundle 379.50 kB (94.07 kB gzip). |
+| PostgreSQL `SELECT version(), pg_backend_pid()` | 0 | PostgreSQL 18.4 connected on `govos_db` at port 5433; backend PID 2732 observed for the final availability check. |
+
+### Follow-up gate status
+
+**PASS.** Both P1 findings and all safe P2 cleanups are resolved or confirmed already compliant. All focused tests, the full sequential suite, web TypeScript, architecture validation, and the scoped production build pass. The root composite-build baseline remains outside EMIS-1B.1 and was not modified.
+
 ## Working-tree status
 
-The working tree was clean immediately after implementation commit `a8b44c39ae2e3b37fbc9fe630580891880926017`. This evidence file is committed separately so it can record the immutable implementation commit hash. Final status is recorded in the completion response after the evidence commit and push.
+The working tree was clean immediately after follow-up implementation commit `09c5ed911f7b059ade3bf7ac6f3e4e422d9f6b1e`. This evidence update is committed separately so it can record the immutable implementation commit hash. Final status is recorded in the completion response after the evidence commit and push.
