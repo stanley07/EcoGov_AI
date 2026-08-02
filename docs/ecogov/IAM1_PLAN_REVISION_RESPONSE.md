@@ -1,0 +1,37 @@
+# IAM-1 Plan Revision Response
+
+Status: Submitted for Antigravity review
+
+Plan: `docs/ecogov/IAM1_IMPLEMENTATION_PLAN.md`
+
+Draft ADR: `docs/ecogov/adr/ADR-002-tenant-identity-resolution.md`
+
+| #   | Mandatory review item        | Change made                                                                                                                                                                                           | Plan/ADR section                         | Unresolved decision and reason                                                           |
+| --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | Identity/login ADR           | Added draft ADR with tenant-context and global-uniqueness options; recommended A without approving it; made approval a Gate 0 blocker                                                                 | Plan §§3, 19, 22–23; ADR entire document | Antigravity must select A or B because login/API/migration behavior changes materially   |
+| 2   | Separate lifecycles          | Added separate account and invitation state machines, compatibility treatment for account `invited`, acceptance binding, and suspension distinction                                                   | Plan §§4–5, 15                           | Whether `invited` account status is later retired requires schema/compatibility approval |
+| 3   | Role catalog policy          | Defined centralized `TenantRoleCatalog`/`AssignableRolePolicy`, explicit assignable set, display alias, scope/delegation, and platform/admin rejection                                                | Plan §6                                  | Final name/location waits for implementation-time repository audit                       |
+| 4   | Central IAM logic            | Added five thin-route service boundaries and reuse-before-create rule                                                                                                                                 | Plan §8                                  | Exact class/module names wait for audit of equivalent helpers                            |
+| 5   | Permission taxonomy          | Retained six bounded permissions; made `user:write` explicit compatibility only; required one authoritative catalog and backend authority                                                             | Plan §11                                 | Catalog reconciliation mechanics require Antigravity approval due existing drift         |
+| 6   | Reusable identity boundary   | Kept reusable services in existing GovOS boundaries and prohibited premature package extraction                                                                                                       | Plan §§8, 10, 24                         | New identity package is P2 and requires a future ADR                                     |
+| 7   | Delegation policy            | Added explicit matrix, last-admin/system/platform restrictions, organization scope, defaults, and self-sensitive rules                                                                                | Plan §7                                  | `super_admin` assignment of `organization_admin` remains no until explicitly approved    |
+| 8   | Authentication prerequisites | Preserved all prerequisites and classified them as IAM-1, ADR-blocked, or follow-up                                                                                                                   | Plan §19                                 | Identity approach is blocked by ADR-002                                                  |
+| 9   | Migration plan               | Preserved deployed preflight, made details conditional, and added required decision table and abort/escalation outcomes                                                                               | Plan §12                                 | Exact migration contents/number wait for deployed-schema evidence                        |
+| 10  | Timeline/audit               | Kept required event types; declared `authz_audit_log` authoritative; prohibited new timeline table                                                                                                    | Plan §16                                 | Future timeline projection is P2/separate approval                                       |
+| 11  | Quick Access                 | Preserved mandatory production removal, test-only fixture boundary, and production-output tests                                                                                                       | Plan §§2.1, 9, 20–21                     | None for plan; implementation remains unauthorized                                       |
+| 12  | Tests/gates                  | Added lifecycle, ambiguity, catalog, forbidden roles, matrix, cross-tenant, concurrency, idempotency, session, redaction, Quick Access, platform, migration, accessibility tests; strengthened Gate 0 | Plan §§20, 22                            | Gates cannot start before approvals/preflight                                            |
+| 13  | Required structure           | Added revision reason, architecture decisions, lifecycle sections, catalog, matrix, services, invariants, open decisions, and P2 backlog; preserved remaining requested sections                      | Plan §§1–26                              | None                                                                                     |
+| 14  | Scope restrictions           | Reaffirmed no code/migration/package/platform/custom-role/deletion/external identity/module expansion                                                                                                 | Plan §10; ADR status                     | None                                                                                     |
+| 15  | Deliverables                 | Revised plan and created draft ADR plus this response                                                                                                                                                 | These three documentation files          | Antigravity review pending                                                               |
+| 16  | Verification                 | Documentation-only diff/lint/whitespace/scope checks required before commit                                                                                                                           | This response; final handoff             | Markdown lint depends on repository tooling availability                                 |
+
+## Summary of unresolved approvals
+
+1. Select ADR-002 Option A or B.
+2. Approve delegation matrix and organization-scope semantics.
+3. Decide whether tenant `super_admin` may ever assign `organization_admin`; current policy is no.
+4. Confirm canonical role/permission reconciliation.
+5. Approve migration decisions after deployed-schema preflight.
+6. Decide the long-term compatibility disposition of `user_account.status='invited'`.
+
+No implementation code, API, UI, test, package, lockfile, generated file, migration, or database change is part of this revision.
