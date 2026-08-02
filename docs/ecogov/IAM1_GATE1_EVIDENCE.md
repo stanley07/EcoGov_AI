@@ -104,4 +104,31 @@ Post-attempt state was rechecked:
 
 Migration 28 remains unapplied. Proceeding requires explicit owner/Antigravity approval of a deterministic migration-27 checksum reconciliation backed by schema equivalence evidence or recovery of the exact originally applied SQL. Bypassing checksum verification, manually applying migration 28, silently changing migration history, or rewriting immutable migration 27 is prohibited. Gate 2 remains blocked.
 
+## Bootstrap-prerequisite deployment reattempt
+
+The approved “Gate 1 Deployment + Initial EcoGov Tenant Administrator Bootstrap” directive was evaluated in strict phase order. Phase A reconfirmed the target before mutation:
+
+- tenant ID: `00000000-0000-0000-0000-000000000001`
+- slug: `anambra-state-ministry-of-environment`
+- name: Anambra State Ministry of Environment
+- status: active
+- system-reserved: no
+- exact configured/public slug resolution: one tenant
+- current users/memberships/sessions: 0/0/0
+- tenant-local `super_admin` roles: 1
+
+A test tenant shares the display name but has a different slug; exact-slug resolution is unambiguous. The operational target matches the configured `PUBLIC_TENANT_SLUG` default and canonical bootstrap tenant metadata.
+
+Phase B preflight again passed with cross-tenant memberships 0, duplicate NULL-organization assignments 0, and highest migration 27. A second fresh backup was created and restore-verified:
+
+- backup: `C:\tmp\govos_iam1_gate1_bootstrap_pre_000028_20260802_170523.dump`
+- size: 1,403,412 bytes
+- restored highest migration: 27
+- restored memberships: 62
+- disposable restore database removed after verification
+
+The official runner command was invoked again and exited 1 on the same version-27 checksum mismatch before applying version 28. Post-attempt verification confirmed migration 27, zero Gate 1 columns, and target users/memberships/sessions still 0/0/0.
+
+The directive explicitly prohibits bootstrap work when migration verification fails. Therefore bootstrap/repair code, tenant administrator identity, membership, invitation, notification, audit event, password, session, tenant-context login, `/auth/session`, frontend, and tests were not changed or executed. This is the required safe stop, not a partial bootstrap.
+
 Commit hash and final working-tree status will be recorded after the documentation/migration-only commit.
