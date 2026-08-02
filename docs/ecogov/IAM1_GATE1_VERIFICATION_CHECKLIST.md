@@ -7,16 +7,18 @@
 - [x] Deployed duplicate NULL-organization assignment count is 0.
 - [x] Highest deployed and repository migration is 27 before drafting.
 - [x] Migration filename is `000028_iam_membership_tenant_integrity.sql`.
-- [ ] Antigravity approves migration design and SQL.
+- [x] Antigravity approves migration design and SQL.
 
 ## Pre-application safety
 
-- [ ] Repeat the `0 / 0 / 27` preflight immediately before application.
-- [ ] Confirm migration 28 has not appeared on another branch/deployment.
-- [ ] Create a target backup and prove it restores.
-- [ ] Capture membership row count and identity/ownership checksum.
-- [ ] Confirm no incompatible membership status/version columns exist.
-- [ ] Confirm no missing or cross-tenant referenced entities exist.
+- [x] Repeat the `0 / 0 / 27` preflight immediately before application.
+- [x] Confirm migration 28 has not appeared on another branch/deployment.
+- [x] Create a target backup and prove it restores.
+- [x] Capture membership row count and identity/ownership checksum.
+- [x] Confirm no incompatible membership status/version columns exist.
+- [x] Confirm no missing or cross-tenant referenced entities exist.
+
+Deployment blocker: the official runner stopped before migration 28 because deployed migration 27's recorded checksum does not match the committed migration 27 file. All post-apply items remain unchecked until that immutable-migration discrepancy is separately reviewed and reconciled.
 
 ## Isolated migration verification
 
