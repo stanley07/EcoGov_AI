@@ -5,6 +5,7 @@ import {
   hasPlatformPermission,
   TenantProvisioningService,
 } from "@govos/core";
+import { DevelopmentMailbox } from "@govos/infrastructure";
 import registryReadRoutes from "./platform-admin/registry-read.js";
 import registryCommandsRoutes from "./platform-admin/registry-commands.js";
 import executionsRoutes from "./platform-admin/executions.js";
@@ -44,8 +45,39 @@ function requirePlatformAccess(pool: Pool, permission: PlatformPermission) {
   };
 }
 
+async function requireDevelopmentMailbox(_req: FastifyRequest, reply: FastifyReply) {
+  if (process.env.NODE_ENV !== "development" || process.env.DEV_MAILBOX_ENABLED !== "true") {
+    return reply.status(404).send({ error: "Not found" });
+  }
+}
+
 export default async function platformAdminRoutes(app: FastifyInstance, { pool }: { pool: Pool }) {
   const provisioningService = new TenantProvisioningService(pool);
+  const mailbox = new DevelopmentMailbox();
+  const mailboxGuards = [requireDevelopmentMailbox, requirePlatformAccess(pool, PlatformPermission.AUDIT_READ)];
+
+  app.get("/internal/dev-mailbox", { preHandler: mailboxGuards }, async (_req, reply) => reply.send({ items: await mailbox.list() }));
+  app.get("/internal/dev-mailbox/:id", { preHandler: mailboxGuards }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try { return reply.send(await mailbox.view(id)); } catch { return reply.status(404).send({ error: "Not found" }); }
+  });
+  app.post("/internal/dev-mailbox/:id/open", { preHandler: mailboxGuards }, async (req, reply) => {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) return reply.status(503).send({ error: "Development mailbox key unavailable" });
+    const { id } = req.params as { id: string };
+    try {
+      const invitation = await mailbox.open(id, key);
+      return reply.send({ invitationId: invitation.invitationId, recipientEmail: invitation.recipientEmail, activationUrl: invitation.activationUrl, expiresAt: invitation.expiresAt });
+    } catch { return reply.status(404).send({ error: "Not found" }); }
+  });
+  app.post("/internal/dev-mailbox/:id/delivered", { preHandler: mailboxGuards }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try { await mailbox.markDelivered(id); return reply.status(204).send(); } catch { return reply.status(404).send({ error: "Not found" }); }
+  });
+  app.delete("/internal/dev-mailbox/:id", { preHandler: mailboxGuards }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try { await mailbox.delete(id); return reply.status(204).send(); } catch { return reply.status(404).send({ error: "Not found" }); }
+  });
 
   // 1. Provision Tenant (Idempotency Key integrated)
   app.post(

@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { TaskExecutor, decryptPayload } from "@govos/core";
+import { DevelopmentMailbox, DevelopmentNotificationPayload } from "@govos/infrastructure";
 
 export class SendInvitationExecutor implements TaskExecutor {
   private pool: Pool;
@@ -16,7 +17,7 @@ export class SendInvitationExecutor implements TaskExecutor {
 
     // Retrieve encrypted payload from DB
     const res = await this.pool.query(
-      "SELECT encrypted_payload FROM task_execution WHERE task_id = $1",
+      "SELECT tenant_id, encrypted_payload FROM task_execution WHERE task_id = $1",
       [taskId]
     );
 
@@ -40,6 +41,19 @@ export class SendInvitationExecutor implements TaskExecutor {
     // Validate decrypted payload fields
     if (!decrypted.invitationId || !decrypted.recipientEmail || !decrypted.activationUrl) {
       throw new Error("Invalid decrypted task payload: missing fields");
+    }
+
+    if (process.env.GOVOS_NOTIFICATION_PROVIDER === "development") {
+      await new DevelopmentMailbox().deliver({
+        notificationId: taskId,
+        tenantId: res.rows[0].tenant_id,
+        notificationType: "tenant-invitation",
+        subject: "Your GovOS invitation is ready",
+        body: "A secure invitation is available for this recipient in the protected development mailbox.",
+        payload: decrypted as DevelopmentNotificationPayload,
+        encryptionKey,
+      });
+      return;
     }
 
     // Mask recipient email for logging

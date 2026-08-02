@@ -4,6 +4,8 @@ import { ReadinessCheckResult } from "@govos/domain";
 import { MigrationRunner } from "@govos/database";
 import { logger } from "@govos/observability";
 
+export * from "./development-mailbox.js";
+
 export function createDatabasePool(config: Config): Pool {
   logger.info("Initializing database connection pool");
   return new Pool({

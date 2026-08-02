@@ -39,6 +39,7 @@ scratch/pg_err*.txt
 
 # Databases / Docker local data
 postgres-data/
+runtime/dev-mailbox/
 
 # Local PostgreSQL test database and runtime files
 scratch/pg_data/
