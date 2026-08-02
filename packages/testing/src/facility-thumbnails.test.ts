@@ -6,18 +6,30 @@ import { setupTestEnvironment, setupAuthUser, createTestTenant, createTestUser, 
 const connectionString = process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5433/govos_db";
 
 async function assignTenantRole(pool: Pool, userId: string, roleName: string, tenantId: string) {
-  const roleRes = await pool.query("SELECT id FROM role WHERE name = $1", [roleName]);
+  const roleRes = await pool.query("SELECT id FROM role WHERE name = $1 AND tenant_id = $2", [roleName, tenantId]);
   let roleId: string;
   if (roleRes.rows.length > 0) {
     roleId = roleRes.rows[0].id;
   } else {
     roleId = crypto.randomUUID();
-    await pool.query("INSERT INTO role (id, name, description) VALUES ($1, $2, 'Description')", [roleId, roleName]);
+    await pool.query(
+      "INSERT INTO role (id, tenant_id, name, description, is_system) VALUES ($1, $2, $3, $4, TRUE)",
+      [roleId, tenantId, roleName, `Canonical ${roleName} test role`]
+    );
   }
   await pool.query(
     "INSERT INTO membership (id, user_id, role_id, tenant_id) VALUES ($1, $2, $3, $4)",
     [crypto.randomUUID(), userId, roleId, tenantId]
   );
+  const tenantMatch = await pool.query(
+    `SELECT 1 FROM membership m
+     JOIN user_account u ON u.id = m.user_id
+     JOIN role r ON r.id = m.role_id
+     WHERE m.user_id = $1 AND m.tenant_id = $2
+       AND u.tenant_id = m.tenant_id AND r.tenant_id = m.tenant_id`,
+    [userId, tenantId]
+  );
+  if (tenantMatch.rowCount !== 1) throw new Error("Test membership must use a role from the same tenant");
 }
 
 describe("Facility Thumbnails API Integration Tests", () => {
@@ -107,21 +119,22 @@ describe("Facility Thumbnails API Integration Tests", () => {
   });
 
   afterAll(async () => {
-    // Cleanup Tenant A
-    await pool.query("DELETE FROM facility_document WHERE tenant_id = $1", [tenantAId]);
-    await pool.query("DELETE FROM facility WHERE tenant_id = $1", [tenantAId]);
-    await pool.query("DELETE FROM organization WHERE tenant_id = $1", [tenantAId]);
-    
-    // Cleanup Tenant B
-    await pool.query("DELETE FROM facility_document WHERE tenant_id = $1", [tenantBId]);
-    await pool.query("DELETE FROM facility WHERE tenant_id = $1", [tenantBId]);
-    await pool.query("DELETE FROM organization WHERE tenant_id = $1", [tenantBId]);
-    await pool.query("DELETE FROM session WHERE tenant_id = $1", [tenantBId]);
-    await pool.query("DELETE FROM membership WHERE tenant_id = $1", [tenantBId]);
-    await pool.query("DELETE FROM user_account WHERE tenant_id = $1", [tenantBId]);
-    await pool.query("DELETE FROM tenant WHERE id = $1", [tenantBId]);
-
-    await pool.end();
+    try {
+      // Delete both tenant fixtures in the same deterministic dependency order.
+      const tenantIds = [tenantAId, tenantBId];
+      await pool.query("DELETE FROM facility_document WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM facility WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM organization WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM session WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM membership WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM user_account WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM role WHERE tenant_id = ANY($1::uuid[]) AND name = 'super_admin'", [tenantIds]);
+      await pool.query("DELETE FROM local_government_area WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM cluster WHERE tenant_id = ANY($1::uuid[])", [tenantIds]);
+      await pool.query("DELETE FROM tenant WHERE id = ANY($1::uuid[])", [tenantIds]);
+    } finally {
+      await pool.end();
+    }
   });
 
   test("1. Facility with primary image returns image metadata", async () => {
