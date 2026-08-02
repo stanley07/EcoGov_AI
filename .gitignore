@@ -1,4 +1,4 @@
-# Dependencies
+4# Dependencies
 node_modules/
 .pnp
 .pnp.*
@@ -33,3 +33,9 @@ yarn-error.log*
 
 # Databases / Docker local data
 postgres-data/
+
+# Local PostgreSQL test database and runtime files
+scratch/pg_data/
+scratch/pg_log*.txt
+scratch/pg_err*.txt
+*.pid
