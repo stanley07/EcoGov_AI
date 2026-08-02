@@ -31,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
 }) => {
   const navigationId = useId().replace(/:/g, "");
+  const [brandLogoFailed, setBrandLogoFailed] = useState(false);
   // Track expanded groups (default all expanded)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     () => groups.reduce((acc, g) => ({ ...acc, [g.id]: true }), {}),
@@ -80,19 +81,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
           flexShrink: 0,
         }}
       >
-        <img
-          src="/minEnv.jpg"
-          alt="Anambra State Ministry of Environment logo"
-          style={{
-            width: "56px",
-            height: "56px",
-            objectFit: "contain",
-            borderRadius: "50%",
-            background: "white",
-            marginBottom: "12px",
-            border: "1px solid #334155",
-          }}
-        />
+        {brandLogoFailed ? (
+          <div
+            role="img"
+            aria-label="EcoGov AI logo"
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              background: "#0f172a",
+              color: "#38bdf8",
+              marginBottom: "12px",
+              border: "1px solid #38bdf8",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+            }}
+          >
+            EG
+          </div>
+        ) : (
+          <img
+            src="/minEnv.jpg"
+            alt="Anambra State Ministry of Environment logo"
+            onError={() => setBrandLogoFailed(true)}
+            style={{
+              width: "56px",
+              height: "56px",
+              objectFit: "contain",
+              borderRadius: "50%",
+              background: "white",
+              marginBottom: "12px",
+              border: "1px solid #334155",
+            }}
+          />
+        )}
         <h2
           style={{
             margin: 0,
@@ -298,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             width: "100%",
             minHeight: "44px",
             padding: "10px",
-            background: "#f87171",
+            background: "#ef4444",
             color: "#0f172a",
             border: "none",
             borderRadius: "6px",

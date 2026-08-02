@@ -19,6 +19,12 @@ import { PageContainer } from "./layout/PageContainer.js";
 import { ModuleAvailabilityPanel } from "./layout/ModuleAvailabilityPanel.js";
 import { navigationGroups } from "./layout/navigationConfig.js";
 import { AccessDeniedPage } from "./layout/AccessDeniedPage.js";
+import {
+  PLATFORM_ADMIN_NAV_PERMISSION,
+  SYSTEM_TENANT_ID,
+  canViewPlatformAdmin,
+  resolvePlatformPermissionClaims,
+} from "./layout/shellAuthorization.js";
 
 
 
@@ -71,6 +77,9 @@ interface Organization {
 
 export const resolveSessionPermissions = (roles: string[]): string[] => {
   const permissions = new Set<string>();
+  for (const permission of resolvePlatformPermissionClaims(roles)) {
+    permissions.add(permission);
+  }
   if (roles.includes("super_admin")) {
     permissions.add("org:read");
     permissions.add("org:write");
@@ -167,6 +176,8 @@ const getBreadcrumbs = (tab: string): string[] => {
       return ["EcoGov", "Administration", "Settings"];
     case "platform":
       return ["GovOS", "Platform Admin"];
+    case "denied":
+      return ["EcoGov", "Restricted"];
     case "audits":
       return ["EcoGov", "Operations", "Audits"];
     case "inspections":
@@ -210,6 +221,8 @@ const getPageTitle = (tab: string): string => {
       return "Organization Settings";
     case "platform":
       return "Platform Admin Console";
+    case "denied":
+      return "Access Restricted";
     case "audits":
       return "Environmental Audits";
     case "inspections":
@@ -268,7 +281,7 @@ function App() {
     const savedUser = localStorage.getItem("govos_user")
       ? JSON.parse(localStorage.getItem("govos_user")!)
       : null;
-    return savedUser?.tenantId === "00000000-0000-0000-0000-000000000000"
+    return savedUser && canViewPlatformAdmin(savedUser.tenantId, savedUser.roles)
       ? "platform"
       : "dashboard";
   });
@@ -349,7 +362,7 @@ function App() {
       localStorage.setItem("govos_user", JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      if (data.user.tenantId === "00000000-0000-0000-0000-000000000000") {
+      if (canViewPlatformAdmin(data.user.tenantId, data.user.roles)) {
         setActiveTab("platform");
       } else {
         setActiveTab("dashboard");
@@ -446,15 +459,18 @@ function App() {
 
   // Grouped Navigation Tree data mapped dynamically from configuration with permission filters
   const userPermissions = resolveSessionPermissions(user.roles);
+  const canAccessPlatformAdmin =
+    user.tenantId === SYSTEM_TENANT_ID &&
+    userPermissions.includes(PLATFORM_ADMIN_NAV_PERMISSION);
   const navGroups: ShellNavigationGroup[] = navigationGroups
     .map((group) => {
       const visibleItems = group.items
         .map((item) => {
           let isVisible = true;
           if (item.platformAdminOnly) {
-            isVisible = user.tenantId === "00000000-0000-0000-0000-000000000000";
+            isVisible = canAccessPlatformAdmin;
           } else {
-            if (item.tenantOnly && user.tenantId === "00000000-0000-0000-0000-000000000000") {
+            if (item.tenantOnly && user.tenantId === SYSTEM_TENANT_ID) {
               isVisible = false;
             }
             if (item.requiredPermission) {
@@ -529,8 +545,14 @@ function App() {
         )}
 
         {/* Tab 0: Platform Admin Console */}
-        {activeTab === "platform" && (
+        {activeTab === "platform" && canAccessPlatformAdmin && (
           <PlatformAdminConsole token={token!} />
+        )}
+
+        {activeTab === "platform" && !canAccessPlatformAdmin && (
+          <AccessDeniedPage
+            onBackToDashboard={() => setActiveTab("dashboard")}
+          />
         )}
 
         {/* Tab 1: Dashboard */}

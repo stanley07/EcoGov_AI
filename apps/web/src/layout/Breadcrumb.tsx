@@ -47,6 +47,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
             ) : (
               <button
                 type="button"
+                className="shell-breadcrumb-button"
                 onClick={() => onNavigateItem?.(item)}
                 style={{
                   background: "transparent",
@@ -71,6 +72,13 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
           </React.Fragment>
         );
       })}
+      <style>{`
+        .shell-breadcrumb-button:focus-visible {
+          outline: 3px solid #f8fafc;
+          outline-offset: 3px;
+          border-radius: 2px;
+        }
+      `}</style>
     </nav>
   );
 };
