@@ -337,7 +337,7 @@ export function authRoutes(
 
         // Lock invitation record
         const inviteRes = await client.query(
-          `SELECT id, tenant_id, email_normalized, invitation_type, role_id, status, expires_at
+          `SELECT id, tenant_id, organization_id, email_normalized, invitation_type, role_id, status, expires_at
            FROM user_invitation WHERE token_hash = $1 FOR UPDATE`,
           [tokenHash],
         );
@@ -448,8 +448,8 @@ export function authRoutes(
           await client.query(
             `UPDATE membership
              SET status = 'active', updated_at = NOW()
-             WHERE tenant_id = $1 AND user_id = $2`,
-            [invite.tenant_id, user.id],
+             WHERE tenant_id = $1 AND user_id = $2 AND organization_id IS NOT DISTINCT FROM $3`,
+            [invite.tenant_id, user.id, invite.organization_id],
           );
         }
 

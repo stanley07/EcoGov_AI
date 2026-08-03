@@ -214,6 +214,14 @@ export const navigationGroups: NavigationGroupConfig[] = [
         tenantOnly: true,
       },
       {
+        id: "organizations",
+        label: "Organizations",
+        icon: "🏢",
+        targetTab: "organizations",
+        requiredPermission: "org:read",
+        tenantOnly: true,
+      },
+      {
         id: "settings",
         label: "Org Settings",
         icon: "⚙️",

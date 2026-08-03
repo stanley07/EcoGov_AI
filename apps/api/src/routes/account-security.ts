@@ -45,8 +45,8 @@ async function audit(
 async function findTarget(c: PoolClient, a: Actor, id: string, lock = false) {
   return (
     await c.query(
-      `SELECT u.*,m.status membership_status,m.version membership_version,r.name role_name,EXISTS(SELECT 1 FROM platform_role_assignment p WHERE p.user_id=u.id AND p.assignment_status='active') platform_authority FROM user_account u JOIN membership m ON m.user_id=u.id AND m.tenant_id=u.tenant_id JOIN role r ON r.id=m.role_id AND r.tenant_id=m.tenant_id WHERE u.tenant_id=$1 AND u.id=$2 AND u.deleted_at IS NULL ${lock ? "FOR UPDATE OF u,m" : ""}`,
-      [a.tenantId, id],
+      `SELECT u.*,m.status membership_status,m.version membership_version,r.name role_name,EXISTS(SELECT 1 FROM platform_role_assignment p WHERE p.user_id=u.id AND p.assignment_status='active') platform_authority FROM user_account u JOIN membership m ON m.user_id=u.id AND m.tenant_id=u.tenant_id JOIN role r ON r.id=m.role_id AND r.tenant_id=m.tenant_id WHERE u.tenant_id=$1 AND u.id=$2 AND u.deleted_at IS NULL AND EXISTS(SELECT 1 FROM membership am JOIN role ar ON ar.id=am.role_id AND ar.tenant_id=am.tenant_id WHERE am.tenant_id=$1 AND am.user_id=$3 AND am.status='active' AND (ar.name='super_admin' OR (ar.name='organization_admin' AND am.organization_id=m.organization_id AND r.name<>'organization_admin'))) ${lock ? "FOR UPDATE OF u,m" : ""}`,
+      [a.tenantId, id, a.userId],
     )
   ).rows[0];
 }
@@ -338,15 +338,13 @@ export function accountSecurityRoutes(
     if (!(await allowed(pool, r, reply, "user:read"))) return;
     const a = actor(r),
       { userId } = r.params as any;
-    if (
-      !(
-        await pool.query(
-          "SELECT 1 FROM user_account WHERE tenant_id=$1 AND id=$2",
-          [a.tenantId, userId],
-        )
-      ).rowCount
-    )
-      return reply.status(404).send({ error: "User not found" });
+    const client = await pool.connect();
+    try {
+      if (!(await findTarget(client, a, userId)))
+        return reply.status(404).send({ error: "User not found" });
+    } finally {
+      client.release();
+    }
     return (
       await pool.query(
         `SELECT id,created_at "createdAt",expires_at "expiresAt",last_seen_at "lastSeenAt",COALESCE(user_agent,'Unknown device') "deviceLabel" FROM session WHERE tenant_id=$1 AND user_id=$2 AND expires_at>NOW()`,
@@ -370,6 +368,13 @@ export function accountSecurityRoutes(
       q = r.query as any,
       limit = Math.min(Number(q.limit) || 25, 100),
       offset = Math.max(Number(q.offset) || 0, 0);
+    const client = await pool.connect();
+    try {
+      if (!(await findTarget(client, a, userId)))
+        return reply.status(404).send({ error: "User not found" });
+    } finally {
+      client.release();
+    }
     return (
       await pool.query(
         `SELECT action "eventType",created_at "timestamp",user_id "actorId",resource "targetId",context->>'reason' reason,context->>'sessionRevocationCount' "sessionRevocationCount" FROM authz_audit_log WHERE tenant_id=$1 AND resource=$2 AND action LIKE 'ACCOUNT_SECURITY_%' ORDER BY created_at ${q.sortOrder === "asc" ? "ASC" : "DESC"} LIMIT $3 OFFSET $4`,

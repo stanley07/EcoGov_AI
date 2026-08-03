@@ -14,6 +14,8 @@ import { InvitationAcceptancePage } from "./auth/InvitationAcceptancePage.js";
 import { UsersAccessPage } from "./iam/UsersAccessPage.js";
 import { AccountSecurityPage } from "./iam/AccountSecurityPage.js";
 import { UserSecurityPage } from "./iam/UserSecurityPage.js";
+import { OrganizationsPage } from "./iam/OrganizationsPage.js";
+import { OrganizationDetailPage } from "./iam/OrganizationDetailPage.js";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -180,6 +182,9 @@ export const resolveSessionPermissions = (roles: string[]): string[] => {
     permissions.add("ecogov.dashboard.read");
     permissions.add("facility:read");
   }
+  if (roles.includes("organization_admin")) {
+    for (const permission of ["org:read", "org:write", "user:read", "user:invite", "user:membership:update", "invitation:read", "invitation:create", "role:read", "user:status:write", "user:session:revoke", "user:mfa:reset"]) permissions.add(permission);
+  }
   return Array.from(permissions);
 };
 
@@ -203,6 +208,10 @@ const getBreadcrumbs = (tab: string): string[] => {
       return ["EcoGov", "Administration", "Settings"];
     case "users-access":
       return ["EcoGov", "Administration", "Users & Access"];
+    case "organizations":
+      return ["EcoGov", "Administration", "Organizations"];
+    case "organization-detail":
+      return ["EcoGov", "Administration", "Organizations", "Organization"];
     case "platform":
       return ["GovOS", "Platform Admin"];
     case "denied":
@@ -252,6 +261,10 @@ const getPageTitle = (tab: string): string => {
       return "Organization Settings";
     case "users-access":
       return "Users & Access";
+    case "organizations":
+      return "Organizations";
+    case "organization-detail":
+      return "Organization Administration";
     case "platform":
       return "Platform Admin Console";
     case "denied":
@@ -596,6 +609,14 @@ function App() {
 
         {activeTab === "users-access" && (
           <UsersAccessPage token={token} currentUserId={user.id} />
+        )}
+
+        {activeTab === "organizations" && (
+          <OrganizationsPage apiBaseUrl={API_BASE_URL} token={token} canCreate={user.roles.includes("super_admin")} />
+        )}
+
+        {activeTab === "organization-detail" && (
+          <OrganizationDetailPage apiBaseUrl={API_BASE_URL} token={token} organizationId={matchRoute(window.location.hash)?.params.organizationId || ""} isTenantAdmin={user.roles.includes("super_admin")} />
         )}
 
         {/* Tab 0: Platform Admin Console */}

@@ -6,7 +6,7 @@ export type AppTab =
   | "dashboard" | "registry" | "wizard" | "queue" | "settings" | "platform"
   | "subcontractor-apply" | "subcontractor-status" | "audits" | "inspections"
   | "incidents" | "permits" | "compliance" | "enforcement" | "waste"
-  | "monitoring" | "gis" | "reports" | "verify-licence" | "accept-invitation" | "users-access" | "account-security" | "user-security" | "denied";
+  | "monitoring" | "gis" | "reports" | "verify-licence" | "accept-invitation" | "users-access" | "account-security" | "user-security" | "organizations" | "organization-detail" | "denied";
 
 export type EcoGovRouteDefinition = {
   id: AppTab;
@@ -46,7 +46,9 @@ const routeMetadata: Record<AppTab, Pick<EcoGovRouteDefinition, "label" | "group
   "users-access": { label: "Users & Access", group: "administration", breadcrumb: ["Administration", "Users & Access"], order: 21, visibleInNavigation: true },
   "account-security": { label: "Account Security", group: "administration", breadcrumb: ["Account", "Security"], order: 22, visibleInNavigation: false },
   "user-security": { label: "User Security", group: "administration", breadcrumb: ["Administration", "Users & Access", "Security"], order: 23, visibleInNavigation: false },
-  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 24, visibleInNavigation: false },
+  organizations: { label: "Organizations", group: "administration", breadcrumb: ["Administration", "Organizations"], order: 24, visibleInNavigation: true },
+  "organization-detail": { label: "Organization", group: "administration", breadcrumb: ["Administration", "Organizations", "Organization"], order: 25, visibleInNavigation: false },
+  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 26, visibleInNavigation: false },
 };
 const defineRoute = (route: RouteInput): EcoGovRouteDefinition => ({ ...routeMetadata[route.id], ...route });
 
@@ -78,6 +80,8 @@ export const routesRegistry: readonly EcoGovRouteDefinition[] = ([
   { id: "users-access", path: "#/users-access", accessBoundary: "authenticated", requiredPermission: "user:read", implementationStatus: "available" },
   { id: "users-access", path: "#/administration/users", accessBoundary: "authenticated", requiredPermission: "user:read", implementationStatus: "available" },
   { id: "user-security", path: "#/administration/users/:userId/security", accessBoundary: "authenticated", requiredPermission: "user:read", implementationStatus: "available" },
+  { id: "organizations", path: "#/administration/organizations", accessBoundary: "authenticated", requiredPermission: "org:read", implementationStatus: "available" },
+  { id: "organization-detail", path: "#/administration/organizations/:organizationId", accessBoundary: "authenticated", requiredPermission: "org:read", implementationStatus: "available" },
   { id: "account-security", path: "#/account/security", accessBoundary: "authenticated", implementationStatus: "available" },
   { id: "denied", path: "#/_denied", accessBoundary: "authenticated", implementationStatus: "available" },
 ] satisfies readonly RouteInput[]).map(defineRoute);
@@ -88,6 +92,8 @@ export const LEGACY_TAB_ROUTES: Readonly<Record<Exclude<AppTab, "denied">, strin
   "users-access": "#/users-access",
   "account-security": "#/account/security",
   "user-security": "#/administration/users",
+  organizations: "#/administration/organizations",
+  "organization-detail": "#/administration/organizations",
   "subcontractor-apply": "#/subcontractor-apply", "subcontractor-status": "#/marketplace/status",
   "verify-licence": "#/verify-licence",
   "accept-invitation": INVITATION_ACCEPTANCE_HASH_ROUTE,

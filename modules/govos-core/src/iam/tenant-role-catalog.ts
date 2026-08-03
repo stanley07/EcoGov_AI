@@ -70,8 +70,19 @@ export const TENANT_ROLE_PERMISSION_MANIFESTS: Readonly<Record<string, readonly 
       [...resolveRolePermissions("environmental_consultant")].sort(),
     ),
     finance_officer: Object.freeze([...resolveRolePermissions("finance_officer")].sort()),
+    organization_admin: Object.freeze([
+      "org:read", "org:write", "user:read", "user:invite", "user:membership:update",
+      "invitation:read", "invitation:create", "invitation:resend", "invitation:revoke",
+      "role:read", "user:status:write", "user:session:revoke", "user:mfa:reset",
+    ].sort()),
     citizen: Object.freeze([...resolveRolePermissions("citizen")].sort()),
   });
+
+export const ORGANIZATION_ADMIN_ASSIGNABLE_ROLES = Object.freeze([
+  "inspector",
+  "environmental_consultant",
+  "citizen",
+] as const);
 
 export function assertTenantRoleCatalog(): void {
   const manifest = TENANT_SUPER_ADMIN_PERMISSION_MANIFEST;
