@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./invitation-routes": {
+      "types": "./dist/invitation-routes.d.ts",
+      "default": "./dist/invitation-routes.js"
     }
   },
   "scripts": {

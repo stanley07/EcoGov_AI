@@ -12,7 +12,11 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "composite": false
+    "composite": false,
+    "baseUrl": ".",
+    "paths": {
+      "@govos/core/invitation-routes": ["../../modules/govos-core/src/invitation-routes.ts"]
+    }
   },
   "include": ["src"]
 }

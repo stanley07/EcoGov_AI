@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 export default defineConfig({
   resolve: {
     alias: {
+      "@govos/core/invitation-routes": fileURLToPath(
+        new URL("./modules/govos-core/src/invitation-routes.ts", import.meta.url),
+      ),
       "@govos/infrastructure": fileURLToPath(
         new URL("./packages/infrastructure/src/index.ts", import.meta.url),
       ),

@@ -25,6 +25,7 @@
     "db:migrate": "npm run migrate --workspace=@govos/database",
     "bootstrap": "npm run bootstrap --workspace=@govos/database",
     "govos:bootstrap-platform-admin": "npm run bootstrap-platform-admin --workspace=@govos/database",
+    "iam:open-development-mailbox": "ts-node-esm --project tsconfig.base.json scripts/iam/open-development-mailbox.ts",
     "ai:smoke": "ts-node --project tsconfig.base.json scripts/ai-smoke.ts"
   },
   "devDependencies": {
