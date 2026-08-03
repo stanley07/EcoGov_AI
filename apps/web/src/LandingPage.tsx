@@ -8,7 +8,6 @@ interface LandingPageProps {
   password: string;
   setPassword: (val: string) => void;
   authError: string;
-  quickLogin: (type: "owner" | "inspector" | "director") => void;
 }
 
 export function LandingPage({
@@ -18,7 +17,6 @@ export function LandingPage({
   password,
   setPassword,
   authError,
-  quickLogin,
 }: LandingPageProps) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [actionAlert, setActionAlert] = useState<string | null>(null);
@@ -33,7 +31,7 @@ export function LandingPage({
   const handleRegisterClick = () => {
     setIsLoginModalOpen(true);
     setActionAlert(
-      "To register a facility, please log in with your account. You can use the Quick Access Stubs in the login form.",
+      "To register a facility, please sign in with your tenant account.",
     );
   };
 
@@ -1211,58 +1209,6 @@ export function LandingPage({
               </button>
             </form>
 
-            {/* Quick Access Stubs */}
-            <div
-              style={{
-                marginTop: "25px",
-                borderTop: "1px solid #334155",
-                paddingTop: "15px",
-              }}
-            >
-              <p
-                style={{
-                  margin: "0 0 10px",
-                  fontSize: "0.8rem",
-                  color: "#64748b",
-                  textAlign: "center",
-                }}
-              >
-                Quick Access Stubs
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "8px",
-                }}
-              >
-                {(
-                  [
-                    ["owner", "Owner"],
-                    ["inspector", "Inspector"],
-                    ["director", "Director"],
-                  ] as const
-                ).map(([type, label]) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => quickLogin(type)}
-                    style={{
-                      padding: "8px",
-                      background: "#334155",
-                      border: "none",
-                      borderRadius: "4px",
-                      color: "#f1f5f9",
-                      fontSize: "0.75rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       )}

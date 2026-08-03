@@ -206,6 +206,14 @@ export const navigationGroups: NavigationGroupConfig[] = [
         platformAdminOnly: true,
       },
       {
+        id: "users-access",
+        label: "Users & Access",
+        icon: "👥",
+        targetTab: "users-access",
+        requiredPermission: "user:read",
+        tenantOnly: true,
+      },
+      {
         id: "settings",
         label: "Org Settings",
         icon: "⚙️",

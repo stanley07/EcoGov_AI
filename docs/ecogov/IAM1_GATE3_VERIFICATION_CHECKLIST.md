@@ -1,0 +1,25 @@
+# IAM-1 Gate 3 Verification Checklist
+
+- [x] Framework, IAM plan, ADR-002, ADR-003, and role decision read.
+- [x] Migration history remains at 28; no migration 000029 created.
+- [x] Preflight cross-tenant, duplicate-current, and duplicate-pending counts are zero.
+- [x] Approved 25-name permission manifest contains no platform authority.
+- [x] Reconciliation seeds only `environmental_consultant` and `finance_officer`.
+- [x] No persisted `subcontractor` role exists.
+- [x] Reconciliation is serializable, guarded, tenant-specific, and rejects wildcards/case duplicates.
+- [x] Reconciliation changes no membership or platform-role assignment.
+- [x] Second reconciliation run is a no-op.
+- [x] Tenant API uses exact granular permissions and tenant predicates.
+- [x] Invitation creation hashes tokens, encrypts delivery, is idempotent, and audits transactionally.
+- [x] Resend supersedes the old token; revoke makes pending invitations unusable.
+- [x] Role/status changes require version and reason, block self-action/protected admin operations, revoke target sessions, and audit.
+- [x] Users & Access route/navigation is permission-gated.
+- [x] Users/Invitations views include search/filter/status/role/actions/loading/empty/error feedback.
+- [x] 44px targets, visible focus, dialog semantics, mobile wrapping, and contained table overflow are present.
+- [x] Quick Access stubs, shared credentials, and production shortcuts removed.
+- [x] Focused suites pass.
+- [x] Full sequential Vitest suite passes.
+- [x] Database/domain/infrastructure/core/API/worker/web TypeScript checks pass.
+- [x] Core, API, and web builds pass.
+- [x] Final database invariants pass.
+- [ ] Independent Antigravity approval.

@@ -21,6 +21,7 @@ import platformAdminRoutes from "./routes/platform-admin.js";
 import { agentExecutionsRoutes } from "./routes/agent-executions.js";
 import { marketplaceRoutes } from "./routes/marketplace.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
+import { tenantIamRoutes } from "./routes/tenant-iam.js";
 
 
 // Extend Fastify request interface
@@ -42,7 +43,7 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
   void app.register(cors, {
     origin: ["http://localhost:3000"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "If-Match", "X-Correlation-Id"],
     credentials: true,
   });
 
@@ -205,6 +206,7 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
   app.register(agentExecutionsRoutes, { pool });
   app.register(marketplaceRoutes, { pool });
   app.register(dashboardRoutes, { pool });
+  app.register(tenantIamRoutes, { pool });
 
   return app;
 }
