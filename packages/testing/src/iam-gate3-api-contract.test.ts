@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
+import { ASSIGNABLE_TENANT_ROLES } from "@govos/core/tenant-role-catalog";
 
 const source = readFileSync(resolve(process.cwd(), "apps/api/src/routes/tenant-iam.ts"), "utf8");
 
@@ -19,6 +20,11 @@ describe("IAM Gate 3 tenant API security contract", () => {
   });
 
   test("new endpoints never authorize through compatibility user:write", () => {
+    expect(Array.isArray(ASSIGNABLE_TENANT_ROLES)).toBe(true);
+    expect(typeof ASSIGNABLE_TENANT_ROLES[Symbol.iterator]).toBe("function");
+    expect([...ASSIGNABLE_TENANT_ROLES]).toEqual([
+      "director", "inspector", "environmental_consultant", "finance_officer", "citizen",
+    ]);
     expect(source).not.toContain('requirePermission(pool, req, reply, "user:write")');
     expect(source).not.toContain('requirePermission(pool,req,reply,"user:write")');
   });

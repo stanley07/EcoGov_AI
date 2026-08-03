@@ -5,7 +5,7 @@ import {
   assertTenantRoleCatalog,
   TENANT_ROLE_PERMISSION_MANIFESTS,
   TENANT_SUPER_ADMIN_PERMISSION_MANIFEST,
-} from "@govos/core";
+} from "@govos/core/tenant-role-catalog";
 
 const APPROVAL_REFERENCE = "ADR-003-IAM1-GATE3-2026-08-03";
 const SEEDED_ROLES = Object.freeze([

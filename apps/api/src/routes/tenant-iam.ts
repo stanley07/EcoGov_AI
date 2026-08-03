@@ -1,7 +1,8 @@
 import * as crypto from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool, PoolClient } from "pg";
-import { encryptPayload, ASSIGNABLE_TENANT_ROLES } from "@govos/core";
+import { encryptPayload } from "@govos/core";
+import { ASSIGNABLE_TENANT_ROLES } from "@govos/core/tenant-role-catalog";
 import { buildInvitationActivationUrl } from "@govos/core/invitation-routes";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
