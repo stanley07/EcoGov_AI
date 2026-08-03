@@ -44,7 +44,7 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 
 | Role | Mapped Permissions | Assignability |
 | --- | --- | --- |
-| `super_admin` | Exact named manifest: 12 approved operational permissions, 9 granular IAM permissions, and mapped temporary `user:write` compatibility permission (currently 22 unique names) | Protected (System Provisioned Only) |
+| `super_admin` | Exact named manifest: 12 approved operational permissions, 9 granular IAM permissions, 3 privileged tenant-security permissions, and mapped temporary `user:write` compatibility permission (currently 25 unique names) | Protected (System Provisioned Only) |
 | `director` | `user:read`, `invitation:read`, `role:read`, plus standard operations | Assignable |
 | `inspector` | Standard operations only (no IAM management permissions) | Assignable |
 | `environmental_consultant` | Standard operations only (no IAM management permissions) | Assignable |
@@ -69,7 +69,7 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 
 * **Rollback Strategy**: If reconciliation fails, transaction rollback must restore the database to its pre-reconciliation state.
 * **Seeding Verification**: Post-seed validation must prove:
-  1. `super_admin` permissions exactly equal the approved named manifest: 12/12 operational, 9/9 granular IAM, and 1/1 mapped `user:write` compatibility permission. The currently expected unique count is 22, derived from the names rather than enforced independently.
+  1. `super_admin` permissions exactly equal the approved named manifest: 12/12 operational, 9/9 granular IAM, 3/3 privileged tenant-security, and 1/1 mapped `user:write` compatibility permission. The currently expected unique count is 25, derived from the names rather than enforced independently.
   2. Zero `platform.*` permissions exist on tenant roles.
   3. Zero cross-tenant mappings exist.
 * **Test Requirements**: Focused integration tests must cover wildcard rejections, assignment validations, and tenant-boundary checks.
@@ -81,3 +81,5 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 * The decision package is complete. Resuming Gate 3 implementation is **Authorized** subject to the verification criteria.
 
 The previous “exactly 19” requirement is superseded. No approved operational permission may be removed merely to satisfy a numeric count.
+
+The existing `user:status:write`, `user:session:revoke`, and `user:mfa:reset` mappings are approved tenant-security authority and must not be removed. Gate 3 may use status and session permissions within its approved lifecycle operations; general MFA-reset API/UI work remains deferred unless separately authorized.

@@ -4,7 +4,7 @@ Status: **Approved**
 
 Date: 2026-08-03
 
-The exact permission names in this manifest are authoritative. The currently expected count of 22 is derived from the unique names and is not an independent authorization rule.
+The exact permission names in this manifest are authoritative. The currently expected count of 25 is derived from the unique names and is not an independent authorization rule.
 
 ## Operational permissions (12)
 
@@ -43,6 +43,18 @@ Source: ADR-003 and `docs/ecogov/IAM1_GATE3_ROLE_CATALOG_DECISION.md`.
 
 New Gate 3 endpoints must enforce the exact permission associated with the operation. They may not substitute a role-name check or authorize solely through `user:write`.
 
+## Privileged tenant-security permissions (3)
+
+Source: the deployed tenant-security catalog and the approved Gate 3 discrepancy resolution.
+
+| Permission | Classification | New Gate 3 endpoint use |
+| --- | --- | --- |
+| `user:status:write` | Privileged tenant security | Yes, for approved membership/account lifecycle transitions with self-action, final-admin, tenant, session, and audit protections |
+| `user:session:revoke` | Privileged tenant security | Internally after approved role or status changes; exact tenant and target-user predicates only |
+| `user:mfa:reset` | Privileged tenant security | No general Gate 3 endpoint/UI; retained for the later approved account-security workflow |
+
+These permissions are tenant-scoped and grant no platform authority. Status operations cannot suspend the actor or final active tenant `super_admin`. Session revocation must preserve unrelated sessions, return no token material, and be audited transactionally. MFA reset must never reveal secrets, recovery material, or hashes; mark MFA verified without enrollment; affect platform-administrator MFA; or bypass session invalidation and audit controls.
+
 ## Compatibility permission (1)
 
 | Permission | Source | Classification | New Gate 3 endpoint use |
@@ -53,7 +65,7 @@ New Gate 3 endpoints must enforce the exact permission associated with the opera
 
 ## Derived-count and safety rules
 
-- The 12 operational names, 9 granular names, and `user:write` are distinct; their expected union is 22.
+- The 12 operational names, 9 granular names, 3 privileged tenant-security names, and `user:write` are distinct; their expected union is 25.
 - No name may begin with `platform.*` or `PLATFORM_*`.
 - Reconciliation must preserve all approved operational authority.
 - An unexpected deployed mapping must be reported before mutation and must not be silently removed.

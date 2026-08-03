@@ -50,8 +50,8 @@ The permissions will be transactionally seeded for each tenant based on the runt
 
 #### super_admin
 * Mapped to the exact named manifest in `docs/ecogov/IAM1_GATE3_PERMISSION_MANIFEST.md`.
-* The manifest preserves all 12 approved runtime operational permissions, adds all 9 granular IAM permissions, and retains `user:write` as an explicitly mapped temporary compatibility permission.
-* The currently expected unique count is 22. This count is derived from the names and is not an independent authorization rule; the exact names remain authoritative.
+* The manifest preserves all 12 approved runtime operational permissions, adds all 9 granular IAM permissions, preserves 3 privileged tenant-security permissions, and retains `user:write` as an explicitly mapped temporary compatibility permission.
+* The currently expected unique count is 25. This count is derived from the names and is not an independent authorization rule; the exact names remain authoritative.
 * Protected role; cannot be assigned or demoted by another tenant user.
 
 #### director
@@ -83,3 +83,6 @@ The permissions will be transactionally seeded for each tenant based on the runt
 * System-wide final active `super_admin` protection is enforced to prevent lockouts.
 * Existing operational authority must not be removed to force a historical numeric permission count.
 * New Gate 3 endpoints must enforce their exact granular permission and must never authorize solely through `user:write`.
+* `user:status:write` may authorize protected tenant membership lifecycle transitions, subject to self-action, final-active-super-admin, tenant-boundary, session-invalidation, and audit controls.
+* `user:session:revoke` may authorize exact tenant/target-user session revocation and must never expose token material or affect unrelated users.
+* `user:mfa:reset` remains mapped for the approved tenant-security model, but a general MFA reset endpoint/UI is deferred unless separately authorized; it never grants platform-MFA authority.
