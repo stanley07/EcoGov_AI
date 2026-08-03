@@ -13,6 +13,10 @@
     "./invitation-routes": {
       "types": "./dist/invitation-routes.d.ts",
       "default": "./dist/invitation-routes.js"
+    },
+    "./tenant-role-catalog": {
+      "types": "./dist/iam/tenant-role-catalog.d.ts",
+      "default": "./dist/iam/tenant-role-catalog.js"
     }
   },
   "scripts": {

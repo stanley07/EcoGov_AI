@@ -7,6 +7,9 @@ export default defineConfig({
       "@govos/core/invitation-routes": fileURLToPath(
         new URL("./modules/govos-core/src/invitation-routes.ts", import.meta.url),
       ),
+      "@govos/core/tenant-role-catalog": fileURLToPath(
+        new URL("./modules/govos-core/src/iam/tenant-role-catalog.ts", import.meta.url),
+      ),
       "@govos/infrastructure": fileURLToPath(
         new URL("./packages/infrastructure/src/index.ts", import.meta.url),
       ),

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   TENANT_SUPER_ADMIN_PERMISSION_MANIFEST,
   TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS,
-} from "@govos/core";
+} from "@govos/core/tenant-role-catalog";
 import { reconcileTenantRoleCatalog } from "../../../scripts/iam/reconcile-tenant-role-catalog.js";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -43,6 +43,8 @@ describe.sequential("IAM Gate 3 tenant role catalog reconciliation", () => {
   });
 
   test("manifest is 25 unique tenant-only names", () => {
+    expect(Array.isArray(TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS)).toBe(true);
+    expect(typeof TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS[Symbol.iterator]).toBe("function");
     expect(TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS).toHaveLength(12);
     expect(new Set(TENANT_SUPER_ADMIN_PERMISSION_MANIFEST).size).toBe(25);
     expect(TENANT_SUPER_ADMIN_PERMISSION_MANIFEST.some((name) => name.startsWith("platform.") || name.startsWith("PLATFORM_"))).toBe(false);
