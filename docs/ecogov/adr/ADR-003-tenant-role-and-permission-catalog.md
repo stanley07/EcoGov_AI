@@ -41,14 +41,17 @@ We approve the transition to a granular permission model for IAM actions:
 * `role:read`: Read roles catalog.
 
 ### 4. Legacy Compatibility
-* **Decision**: The legacy `user:write` permission is retained temporarily as a **compatibility umbrella alias**.
+* **Decision**: The legacy `user:write` permission is retained and mapped to tenant `super_admin` temporarily as a **compatibility umbrella alias**.
 * **Transition Policy**: Existing endpoints may accept `user:write` during the transition. However, all new IAM-1 endpoints must require and enforce the granular permissions.
+* No wildcard, prefix, or implicit permission expansion is allowed.
 
 ### 5. Seeding and Mappings
 The permissions will be transactionally seeded for each tenant based on the runtime RBAC catalog.
 
 #### super_admin
-* Mapped to all 19 canonical tenant permissions.
+* Mapped to the exact named manifest in `docs/ecogov/IAM1_GATE3_PERMISSION_MANIFEST.md`.
+* The manifest preserves all 12 approved runtime operational permissions, adds all 9 granular IAM permissions, and retains `user:write` as an explicitly mapped temporary compatibility permission.
+* The currently expected unique count is 22. This count is derived from the names and is not an independent authorization rule; the exact names remain authoritative.
 * Protected role; cannot be assigned or demoted by another tenant user.
 
 #### director
@@ -78,3 +81,5 @@ The permissions will be transactionally seeded for each tenant based on the runt
 * Seeding is driven by a guarded, idempotent script matching runtime RBAC definitions.
 * Access to `super_admin` role assignment is restricted to system-level provisioning.
 * System-wide final active `super_admin` protection is enforced to prevent lockouts.
+* Existing operational authority must not be removed to force a historical numeric permission count.
+* New Gate 3 endpoints must enforce their exact granular permission and must never authorize solely through `user:write`.

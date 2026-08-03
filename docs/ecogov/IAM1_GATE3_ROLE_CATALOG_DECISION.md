@@ -34,8 +34,9 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 * `role:read`
 
 ### Legacy Compatibility Policy
-* The legacy `user:write` permission is temporarily retained as an **umbrella compatibility alias**.
+* The legacy `user:write` permission is temporarily retained and mapped to tenant `super_admin` as an **umbrella compatibility alias**.
 * Existing endpoints may continue to accept `user:write`. All new Gate 3 endpoints must require the granular permissions explicitly.
+* No wildcard, prefix, or implicit permission expansion is allowed.
 
 ---
 
@@ -43,7 +44,7 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 
 | Role | Mapped Permissions | Assignability |
 | --- | --- | --- |
-| `super_admin` | All 19 canonical tenant permissions, including all IAM-1 permissions | Protected (System Provisioned Only) |
+| `super_admin` | Exact named manifest: 12 approved operational permissions, 9 granular IAM permissions, and mapped temporary `user:write` compatibility permission (currently 22 unique names) | Protected (System Provisioned Only) |
 | `director` | `user:read`, `invitation:read`, `role:read`, plus standard operations | Assignable |
 | `inspector` | Standard operations only (no IAM management permissions) | Assignable |
 | `environmental_consultant` | Standard operations only (no IAM management permissions) | Assignable |
@@ -68,7 +69,7 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 
 * **Rollback Strategy**: If reconciliation fails, transaction rollback must restore the database to its pre-reconciliation state.
 * **Seeding Verification**: Post-seed validation must prove:
-  1. Exactly 19/19 permissions exist on `super_admin`.
+  1. `super_admin` permissions exactly equal the approved named manifest: 12/12 operational, 9/9 granular IAM, and 1/1 mapped `user:write` compatibility permission. The currently expected unique count is 22, derived from the names rather than enforced independently.
   2. Zero `platform.*` permissions exist on tenant roles.
   3. Zero cross-tenant mappings exist.
 * **Test Requirements**: Focused integration tests must cover wildcard rejections, assignment validations, and tenant-boundary checks.
@@ -78,3 +79,5 @@ The following new granular permissions are approved as canonical for IAM-1 Gate 
 ## 6. Authorization to Resume Gate 3
 
 * The decision package is complete. Resuming Gate 3 implementation is **Authorized** subject to the verification criteria.
+
+The previous “exactly 19” requirement is superseded. No approved operational permission may be removed merely to satisfy a numeric count.
