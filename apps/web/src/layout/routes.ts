@@ -1,10 +1,12 @@
+import { INVITATION_ACCEPTANCE_HASH_ROUTE } from "@govos/core/invitation-routes";
+
 export const AUTH_RETURN_TO_KEY = "govos.auth.returnTo";
 
 export type AppTab =
   | "dashboard" | "registry" | "wizard" | "queue" | "settings" | "platform"
   | "subcontractor-apply" | "subcontractor-status" | "audits" | "inspections"
   | "incidents" | "permits" | "compliance" | "enforcement" | "waste"
-  | "monitoring" | "gis" | "reports" | "verify-licence" | "denied";
+  | "monitoring" | "gis" | "reports" | "verify-licence" | "accept-invitation" | "denied";
 
 export type EcoGovRouteDefinition = {
   id: AppTab;
@@ -38,9 +40,10 @@ const routeMetadata: Record<AppTab, Pick<EcoGovRouteDefinition, "label" | "group
   "subcontractor-apply": { label: "Apply for Licence", group: "marketplace", breadcrumb: ["Marketplace", "Apply for Licence"], order: 15, visibleInNavigation: true },
   "subcontractor-status": { label: "Licence Status", group: "marketplace", breadcrumb: ["Marketplace", "Licence Status"], order: 16, visibleInNavigation: true },
   "verify-licence": { label: "Verify Licence", group: "marketplace", breadcrumb: ["Marketplace", "Verify Licence"], order: 17, visibleInNavigation: false },
-  platform: { label: "Platform Console", group: "administration", breadcrumb: ["Administration", "Platform Console"], order: 18, visibleInNavigation: true },
-  settings: { label: "Org Settings", group: "administration", breadcrumb: ["Administration", "Org Settings"], order: 19, visibleInNavigation: true },
-  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 20, visibleInNavigation: false },
+  "accept-invitation": { label: "Accept Invitation", group: "administration", breadcrumb: ["Accept Invitation"], order: 18, visibleInNavigation: false },
+  platform: { label: "Platform Console", group: "administration", breadcrumb: ["Administration", "Platform Console"], order: 19, visibleInNavigation: true },
+  settings: { label: "Org Settings", group: "administration", breadcrumb: ["Administration", "Org Settings"], order: 20, visibleInNavigation: true },
+  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 21, visibleInNavigation: false },
 };
 const defineRoute = (route: RouteInput): EcoGovRouteDefinition => ({ ...routeMetadata[route.id], ...route });
 
@@ -65,6 +68,7 @@ export const routesRegistry: readonly EcoGovRouteDefinition[] = ([
   { id: "subcontractor-status", path: "#/marketplace/status", accessBoundary: "public", implementationStatus: "available" },
   { id: "subcontractor-status", path: "#/marketplace/status/:applicationId", accessBoundary: "public", implementationStatus: "available" },
   { id: "verify-licence", path: "#/verify-licence", accessBoundary: "public", implementationStatus: "planned" },
+  { id: "accept-invitation", path: INVITATION_ACCEPTANCE_HASH_ROUTE, accessBoundary: "public", implementationStatus: "available" },
   { id: "platform", path: "#/platform", accessBoundary: "platform_admin", implementationStatus: "available" },
   { id: "platform", path: "#/platform/:section", accessBoundary: "platform_admin", implementationStatus: "available" },
   { id: "settings", path: "#/settings", accessBoundary: "authenticated", implementationStatus: "available" },
@@ -76,6 +80,7 @@ export const LEGACY_TAB_ROUTES: Readonly<Record<Exclude<AppTab, "denied">, strin
   queue: "#/queue", settings: "#/settings", platform: "#/platform",
   "subcontractor-apply": "#/subcontractor-apply", "subcontractor-status": "#/marketplace/status",
   "verify-licence": "#/verify-licence",
+  "accept-invitation": INVITATION_ACCEPTANCE_HASH_ROUTE,
   audits: "#/operations/audits", inspections: "#/operations/inspections",
   incidents: "#/operations/incidents", permits: "#/operations/permits",
   compliance: "#/operations/compliance", enforcement: "#/operations/enforcement",

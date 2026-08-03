@@ -2,6 +2,7 @@ import * as crypto from "node:crypto";
 import { Pool } from "pg";
 import { loadConfig } from "@govos/configuration";
 import { encryptPayload } from "@govos/core";
+import { buildInvitationActivationUrl } from "@govos/core/invitation-routes";
 
 function getArgs(): { email: string; name: string } {
   const args = process.argv.slice(2);
@@ -122,7 +123,10 @@ export async function bootstrapPlatformAdmin() {
     const payload = {
       invitationId,
       recipientEmail: emailNormalized,
-      activationUrl: `http://localhost:8080/auth/invitations/accept?token=${rawToken}`,
+      activationUrl: buildInvitationActivationUrl(
+        process.env.PUBLIC_WEB_URL || "http://localhost:3000",
+        rawToken,
+      ),
       expiresAt: expiresAt.toISOString(),
       name: name.trim(),
     };

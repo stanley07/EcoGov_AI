@@ -10,6 +10,7 @@ import { FacilityDetailDrawer } from "./facilities/components/FacilityDetailDraw
 import { ApplicationWizard } from "./marketplace/public/ApplicationWizard.js";
 import { ApplicationStatusPage } from "./marketplace/public/ApplicationStatusPage.js";
 import { GuidedDemoPanel } from "./GuidedDemoPanel.js";
+import { InvitationAcceptancePage } from "./auth/InvitationAcceptancePage.js";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -453,6 +454,9 @@ function App() {
       fetchData();
     }
   }, [token, offset, sortBy, sortOrder, filterStatus, filterRisk, searchTerm]);
+
+  // Invitation acceptance is public and always renders outside an existing session shell.
+  if (activeTab === "accept-invitation") return <InvitationAcceptancePage />;
 
   // Public marketplace routes intentionally render outside the authenticated shell.
   if (!token || !user) {

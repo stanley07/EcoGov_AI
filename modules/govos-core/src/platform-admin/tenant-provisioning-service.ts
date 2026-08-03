@@ -2,6 +2,7 @@ import * as crypto from "node:crypto";
 import { Pool } from "pg";
 import { z } from "zod";
 import { encryptPayload } from "../crypto.js";
+import { buildInvitationActivationUrl } from "../invitation-routes.js";
 
 // Input schema validation
 export const ProvisionTenantInputSchema = z.object({
@@ -388,7 +389,10 @@ export class TenantProvisioningService {
       const envelopePayload = {
         invitationId,
         recipientEmail: emailNormalized,
-        activationUrl: `http://localhost:8080/auth/invitations/accept?token=${rawToken}`,
+        activationUrl: buildInvitationActivationUrl(
+          process.env.PUBLIC_WEB_URL || "http://localhost:3000",
+          rawToken,
+        ),
         expiresAt: expiresAt.toISOString(),
         tenantName: input.name,
       };
