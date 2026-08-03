@@ -24,9 +24,20 @@ export function consumeInvitationToken(
   return tokens[0] || null;
 }
 
+export function createPageLoadInvitationTokenCapture() {
+  let capturedToken: string | null | undefined;
+  return (location: BrowserLocation, history: BrowserHistory): string | null => {
+    if (capturedToken !== undefined) return capturedToken;
+    capturedToken = consumeInvitationToken(location, history);
+    return capturedToken;
+  };
+}
+
+const capturePageLoadInvitationToken = createPageLoadInvitationTokenCapture();
+
 export function InvitationAcceptancePage() {
   const [token, setToken] = useState<string | null>(() =>
-    consumeInvitationToken(window.location, window.history),
+    capturePageLoadInvitationToken(window.location, window.history),
   );
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");

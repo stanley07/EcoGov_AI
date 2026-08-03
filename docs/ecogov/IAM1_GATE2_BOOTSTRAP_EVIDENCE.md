@@ -117,3 +117,24 @@ Verification results:
 - Final read-only deployed-state check: invitation `pending`, user `invited`, membership `invited`, sessions `0`.
 
 No bootstrap, invitation creation, invitation acceptance, session creation, mailbox open, or database mutation was performed by this correction.
+
+## StrictMode invitation-token lifecycle correction (2026-08-03)
+
+Root cause: React development StrictMode can invoke a lazy state initializer more than once. The first initializer captured the valid query token and redacted browser history; the second initializer then inspected the redacted address and replaced the in-memory state with an invalid result.
+
+Resolution:
+
+- A page-load-scoped capture closure now evaluates token extraction exactly once and returns the same in-memory result to repeated StrictMode initializers.
+- Browser history is redacted only after the existing validation accepts exactly one well-formed token.
+- The token is retained only in module memory for that page load. It is never restored to the URL or written to local storage, session storage, logs, evidence, or other persistent state.
+- Existing validation remains unchanged: missing, duplicate, and malformed tokens fail before redaction; expired and invalid tokens remain subject to the authoritative acceptance API.
+- Focused coverage renders the acceptance page under `React.StrictMode`, verifies that the password form survives repeated initialization, and proves that history is redacted once while the captured token remains usable in memory.
+
+Verification results:
+
+- Focused command: `node run_with_env.js npx.cmd vitest run apps/web/src/__tests__/invitation-acceptance-routing.test.ts --fileParallelism=false` — exit code 0; **1 file, 11/11 tests passed**, duration 841 ms.
+- Full command: `node run_with_env.js npx.cmd vitest run --fileParallelism=false` — exit code 0; **66 files, 327/327 tests passed**, duration 152.41 seconds.
+- Web TypeScript command: `npx.cmd tsc --noEmit --project apps/web/tsconfig.json` — exit code 0.
+- Production build command: `npm.cmd run build --workspace=@govos/web` — exit code 0; **68 modules transformed**, Vite build 3.09 seconds. The initial sandboxed invocation could not access the Vite configuration; the identical command passed outside the filesystem sandbox without source changes.
+
+No real mailbox item was opened. No bootstrap, invitation creation, invitation acceptance, database mutation, or session creation was performed during this correction. Commit hash and final clean working-tree status are recorded in the review handoff because a commit cannot contain its own hash.

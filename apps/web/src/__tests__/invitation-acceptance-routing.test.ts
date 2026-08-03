@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import React from "react";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   buildInvitationActivationUrl,
   INVITATION_ACCEPTANCE_HASH_ROUTE,
 } from "@govos/core/invitation-routes";
-import { consumeInvitationToken } from "../auth/InvitationAcceptancePage.js";
+import {
+  consumeInvitationToken,
+  createPageLoadInvitationTokenCapture,
+} from "../auth/InvitationAcceptancePage.js";
 import { matchRoute, resolveRoute } from "../layout/routes.js";
 
 describe("IAM Gate 2 public invitation acceptance route", () => {
@@ -56,6 +61,39 @@ describe("IAM Gate 2 public invitation acceptance route", () => {
     );
     expect(consumed).toBe(token);
     expect(history.replaceState).toHaveBeenCalledWith(null, "", `/${INVITATION_ACCEPTANCE_HASH_ROUTE}`);
+  });
+
+  test("page-load capture remains usable after StrictMode-style repeated initialization", () => {
+    const capture = createPageLoadInvitationTokenCapture();
+    const location = { hash: `${INVITATION_ACCEPTANCE_HASH_ROUTE}?token=${token}`, pathname: "/", search: "" };
+    const redactingHistory = {
+      replaceState: vi.fn(() => { location.hash = INVITATION_ACCEPTANCE_HASH_ROUTE; }),
+    };
+    const first = capture(location, redactingHistory);
+    const second = capture(location, redactingHistory);
+    expect(first).toBe(token);
+    expect(second).toBe(token);
+    expect(redactingHistory.replaceState).toHaveBeenCalledOnce();
+  });
+
+  test("acceptance page renders its password form across StrictMode remount initialization", async () => {
+    vi.resetModules();
+    const location = { hash: `${INVITATION_ACCEPTANCE_HASH_ROUTE}?token=${token}`, pathname: "/", search: "" };
+    const replaceState = vi.fn(() => { location.hash = INVITATION_ACCEPTANCE_HASH_ROUTE; });
+    vi.stubGlobal("window", { location, history: { replaceState } });
+    const { InvitationAcceptancePage } = await import("../auth/InvitationAcceptancePage.js");
+    const strictPage = React.createElement(
+      React.StrictMode,
+      null,
+      React.createElement(InvitationAcceptancePage),
+    );
+    const firstRender = renderToString(strictPage);
+    const remountRender = renderToString(strictPage);
+    expect(firstRender).toContain('id="invitation-password"');
+    expect(remountRender).toContain('id="invitation-password"');
+    expect(firstRender).not.toContain("missing or invalid");
+    expect(remountRender).not.toContain("missing or invalid");
+    expect(replaceState).toHaveBeenCalledOnce();
   });
 
   test.each([
