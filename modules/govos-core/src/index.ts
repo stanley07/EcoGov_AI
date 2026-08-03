@@ -10,6 +10,7 @@ export const CORE_MODULES = [
 
 export * from "./context.js";
 export * from "./rbac.js";
+export * from "./iam/tenant-role-catalog.js";
 export * from "./workflow.js";
 export * from "./task-framework.js";
 export * from "./manifest.js";

@@ -11,6 +11,7 @@ import { ApplicationWizard } from "./marketplace/public/ApplicationWizard.js";
 import { ApplicationStatusPage } from "./marketplace/public/ApplicationStatusPage.js";
 import { GuidedDemoPanel } from "./GuidedDemoPanel.js";
 import { InvitationAcceptancePage } from "./auth/InvitationAcceptancePage.js";
+import { UsersAccessPage } from "./iam/UsersAccessPage.js";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -96,6 +97,17 @@ export const resolveSessionPermissions = (roles: string[]): string[] => {
     permissions.add("org:write");
     permissions.add("user:read");
     permissions.add("user:write");
+    permissions.add("user:invite");
+    permissions.add("user:role:assign");
+    permissions.add("user:membership:update");
+    permissions.add("user:status:write");
+    permissions.add("user:session:revoke");
+    permissions.add("user:mfa:reset");
+    permissions.add("invitation:read");
+    permissions.add("invitation:create");
+    permissions.add("invitation:resend");
+    permissions.add("invitation:revoke");
+    permissions.add("role:read");
     permissions.add("facility:read");
     permissions.add("facility:register");
     permissions.add("facility:review");
@@ -187,6 +199,8 @@ const getBreadcrumbs = (tab: string): string[] => {
       return ["EcoGov", "Marketplace", "Verify Licence"];
     case "settings":
       return ["EcoGov", "Administration", "Settings"];
+    case "users-access":
+      return ["EcoGov", "Administration", "Users & Access"];
     case "platform":
       return ["GovOS", "Platform Admin"];
     case "denied":
@@ -234,6 +248,8 @@ const getPageTitle = (tab: string): string => {
       return "Verify Licence";
     case "settings":
       return "Organization Settings";
+    case "users-access":
+      return "Users & Access";
     case "platform":
       return "Platform Admin Console";
     case "denied":
@@ -327,18 +343,6 @@ function App() {
 
   // Fetch metrics
   const [apiReadyState, setApiReadyState] = useState<any>(null);
-
-  // Auto-login helpers for testing
-  const quickLogin = (type: "owner" | "inspector" | "director") => {
-    if (type === "owner") {
-      setEmail("owner@carwash.com");
-    } else if (type === "inspector") {
-      setEmail("inspector@govos.ai");
-    } else if (type === "director") {
-      setEmail("director@govos.ai");
-    }
-    setPassword("password123");
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -471,7 +475,6 @@ function App() {
         password={password}
         setPassword={setPassword}
         authError={authError}
-        quickLogin={quickLogin}
       />
     );
   }
@@ -569,6 +572,10 @@ function App() {
 
         {activeTab === "verify-licence" && (
           <ModuleAvailabilityPanel title="Public Licence Verification" reason="module_not_enabled" description="The public licence checker route is reserved and will be activated when the verification interface is deployed." />
+        )}
+
+        {activeTab === "users-access" && (
+          <UsersAccessPage token={token} currentUserId={user.id} />
         )}
 
         {/* Tab 0: Platform Admin Console */}
