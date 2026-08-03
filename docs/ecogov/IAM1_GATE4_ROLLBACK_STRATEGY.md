@@ -1,0 +1,3 @@
+# IAM-1 Gate 4 Rollback Strategy
+
+The pre-000029 custom-format backup is retained outside the repository. Application rollback is a revert of the Gate 4 commit. Database rollback is owner-controlled and must occur during a maintenance window: stop Gate 4 writers, back up current state, remove only Gate 4 challenge/history data and indexes, remove the Gate 4 session/user columns and constraints, and reconcile `schema_migrations` through an approved migration-history procedure. Existing password hashes, MFA structured fields, memberships, roles, invitations, sessions predating Gate 4, and audit records must never be deleted casually. If Gate 4 has received live password changes, restore-from-backup is not safe without an explicit credential reconciliation plan.

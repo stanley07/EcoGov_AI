@@ -12,6 +12,8 @@ import { ApplicationStatusPage } from "./marketplace/public/ApplicationStatusPag
 import { GuidedDemoPanel } from "./GuidedDemoPanel.js";
 import { InvitationAcceptancePage } from "./auth/InvitationAcceptancePage.js";
 import { UsersAccessPage } from "./iam/UsersAccessPage.js";
+import { AccountSecurityPage } from "./iam/AccountSecurityPage.js";
+import { UserSecurityPage } from "./iam/UserSecurityPage.js";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -334,6 +336,11 @@ function App() {
   // Auth Form State
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [tenantSlug, setTenantSlug] = useState(() => new URLSearchParams(window.location.search).get("tenant") || import.meta.env.VITE_PUBLIC_TENANT_SLUG || "anambra-state-ministry-of-environment");
+  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [passwordResetToken, setPasswordResetToken] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
   const [authError, setAuthError] = useState("");
 
   // Registration Form State
@@ -348,10 +355,11 @@ function App() {
     e.preventDefault();
     setAuthError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      const authPath=passwordResetToken?"/auth/password/reset-required":mfaChallenge?"/auth/mfa/challenge":"/auth/login";
+      const res = await fetch(`${API_BASE_URL}${authPath}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(passwordResetToken?{resetToken:passwordResetToken,currentPassword:password,newPassword}:mfaChallenge ? { challengeToken:mfaChallenge,code:mfaCode } : { tenantSlug,email,password }),
       });
 
       if (!res.ok) {
@@ -360,10 +368,14 @@ function App() {
       }
 
       const data = await res.json();
+      if(data.passwordResetRequired){setPasswordResetToken(data.resetToken);return;}
+      if(passwordResetToken){setPasswordResetToken(null);setPassword("");setNewPassword("");setAuthError("Password changed. Sign in with your new password.");return;}
+      if(data.mfaRequired){setMfaChallenge(data.challengeToken);setPassword("");return;}
       localStorage.setItem("govos_token", data.token);
       localStorage.setItem("govos_user", JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
+      setMfaChallenge(null);setMfaCode("");
       const returnTo = consumeStoredRedirect();
       navigateHash(returnTo || defaultHash(canViewPlatformAdmin(data.user.tenantId, data.user.roles)));
     } catch (err: any) {
@@ -470,11 +482,19 @@ function App() {
     return (
       <LandingPage
         onLogin={handleLogin}
+        tenantSlug={tenantSlug}
+        setTenantSlug={setTenantSlug}
         email={email}
         setEmail={setEmail}
         password={password}
         setPassword={setPassword}
         authError={authError}
+        mfaRequired={Boolean(mfaChallenge)}
+        mfaCode={mfaCode}
+        setMfaCode={setMfaCode}
+        passwordResetRequired={Boolean(passwordResetToken)}
+        newPassword={newPassword}
+        setNewPassword={setNewPassword}
       />
     );
   }
@@ -1382,6 +1402,9 @@ function App() {
             </div>
           </div>
         )}
+
+        {activeTab === "account-security" && <AccountSecurityPage apiBaseUrl={API_BASE_URL} token={token} />}
+        {activeTab === "user-security" && <UserSecurityPage apiBaseUrl={API_BASE_URL} token={token} userId={matchRoute(window.location.hash)?.params.userId || ""} />}
 
         {/* Planned roadmap modules */}
         {activeTab === "audits" && (
