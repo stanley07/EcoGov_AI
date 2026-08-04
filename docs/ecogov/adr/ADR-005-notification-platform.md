@@ -40,6 +40,10 @@ If a WF-2 implementation detail conflicts with one of these invariants, implemen
 13. The development mailbox remains development-only, explicit, encrypted at rest, platform-MFA protected, and non-production. It becomes a provider adapter behind the canonical provider contract while retaining its existing safe API and invitation compatibility.
 14. WF-1 integrations use versioned notification event contracts for assignments, SLA reminders, breaches/escalations, and completion. Notification failure never rolls back an already committed workflow transition.
 15. WF-2 begins with additive migration `000034_notification_platform.sql`. Migration 33 and all earlier migrations remain unchanged.
+16. An expired lease can never strand a delivery in `sending`: fenced recovery reconciles the provider and moves it to `queued`, `provider_accepted`, `delivered`, `expired`, or `dead_lettered`; ambiguous outcomes never auto-retry or fail over.
+17. Replayed requests form immutable same-tenant ancestry through `parent_request_id`; replay has a new correlation/idempotency identity and audits both parent and child.
+18. Every failover candidate undergoes the complete residency, tenant, organization, classification, provider, sender, secret, security, rate/cost, and expiry policy evaluation. Route order never carries authorization forward.
+19. Recipient caches are non-authoritative. IAM changes invalidate candidate caches immediately, and transactional database validation at resolution and just before delivery guarantees freshness when invalidation cannot be proven.
 
 ## Ownership and isolation
 

@@ -1,26 +1,28 @@
 # WF-2 API Specification
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Conventions
 
-Canonical base is `/v1/notifications`. JSON over HTTPS; authenticated tenant context; UUID IDs; UTC timestamps; cursor pagination; `Idempotency-Key` on commands; `If-Match`/`expectedVersion` on mutable resources; correlation IDs; generic `404` for tenant/org scope failures. Errors are `{code,message,correlationId,fieldErrors?}` and contain no destination, body, provider response, secret, or foreign-resource evidence.
+Canonical base is `/v1/notifications`. JSON over HTTPS; authenticated tenant context; UUID IDs; UTC timestamps; `Idempotency-Key` on commands; `If-Match`/`expectedVersion` on mutable resources; correlation IDs; generic `404` for tenant/org scope failures. Errors are `{code,message,correlationId,fieldErrors?}` and contain no destination, body, provider response, secret, or foreign-resource evidence.
+
+Requests, deliveries, dead letters, and inbox use keyset pagination only, ordered by `(created_at DESC,id DESC)`. They accept `cursor` and bounded `limit` (default 50, maximum 100), never `offset`. The opaque authenticated/base64url cursor contains the last `created_at`, last `id`, normalized filter hash, direction, and schema version; changing filters invalidates it. Responses return `{items,nextCursor}`. Low-volume catalogs such as templates/providers may use bounded offset pagination.
 
 ## Template administration
 
-| Method/path                             | Permission                        | Result                                                    |
-| --------------------------------------- | --------------------------------- | --------------------------------------------------------- |
-| `GET /templates`                        | `notification:template:read`      | Tenant-visible bindings/catalog metadata                  |
-| `POST /templates`                       | `notification:template:create`    | Tenant-owned draft template                               |
-| `GET /templates/:id`                    | read                              | Scoped metadata and versions                              |
-| `PATCH /templates/:id`                  | `notification:template:update`    | Mutable metadata with expected version                    |
-| `POST /templates/:id/versions`          | update                            | New/clone draft                                           |
-| `PUT /template-versions/:id`            | update                            | Replace draft schema/renderings                           |
-| `POST /template-versions/:id/validate`  | `notification:template:validate`  | Deterministic bounded report/hash                         |
-| `POST /template-versions/:id/publish`   | `notification:template:publish`   | Publish immutable version                                 |
-| `POST /template-versions/:id/deprecate` | `notification:template:deprecate` | Stop new binding/use                                      |
-| `PUT /template-bindings/:semanticKey`   | publish                           | Atomic active/default binding rotation                    |
-| `GET /template-versions/:id/preview`    | read                              | Redacted fixture preview; no real recipient/provider send |
+| Method/path                             | Permission                        | Result                                                                                                  |
+| --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `GET /templates`                        | `notification:template:read`      | Tenant-visible bindings/catalog metadata                                                                |
+| `POST /templates`                       | `notification:template:create`    | Tenant-owned draft template                                                                             |
+| `GET /templates/:id`                    | read                              | Scoped metadata and versions                                                                            |
+| `PATCH /templates/:id`                  | `notification:template:update`    | Mutable metadata with expected version                                                                  |
+| `POST /templates/:id/versions`          | update                            | New/clone draft                                                                                         |
+| `PUT /template-versions/:id`            | update                            | Replace draft schema/renderings                                                                         |
+| `POST /template-versions/:id/validate`  | `notification:template:validate`  | Deterministic bounded report/hash                                                                       |
+| `POST /template-versions/:id/publish`   | `notification:template:publish`   | Publish immutable version                                                                               |
+| `POST /template-versions/:id/deprecate` | `notification:template:deprecate` | Stop new binding/use                                                                                    |
+| `PUT /template-bindings/:semanticKey`   | publish                           | Atomic rotation after proving the candidate version's template owns this exact application/semantic key |
+| `GET /template-versions/:id/preview`    | read                              | Redacted fixture preview; no real recipient/provider send                                               |
 
 Platform/application catalog endpoints live under the existing platform-admin boundary, use `platform.notification.*`, MFA/recent-auth, and cannot access tenant content through these routes.
 
@@ -71,6 +73,8 @@ The API ignores caller-supplied tenant IDs and rejects unapproved variable/selec
 | `GET /requests/:id/history` | `notification:audit:read`                                           |
 | `POST /requests/:id/cancel` | `notification:request:cancel`, expected version, reason/idempotency |
 
+Request list/detail responses include nullable `parentRequestId`, `rootRequestId`, `replayDepth`, and safe correlation IDs. They never embed ancestor payloads. The lineage is same-tenant and immutable.
+
 No public API forces a provider attempt or edits recipient snapshots.
 
 ## User inbox
@@ -88,7 +92,9 @@ Inbox bodies are sanitized and classification-filtered. Read receipts do not ass
 
 ## Operations
 
-`GET /operations/summary`, `/deliveries`, `/dead-letters`, `/providers`, `/rate-limits`, and `/webhooks` require `notification:operations:read` and return authorized aggregates/redacted rows. `POST /dead-letters/:deliveryId/replay-preview` and `/replay` require `notification:operations:replay`; replay additionally requires expected version, reason, idempotency, and MFA/recent auth where policy says. Tenant operations cannot inspect another tenant or provider-global secrets.
+`GET /operations/summary`, `/deliveries`, `/dead-letters`, `/operations/providers`, `/operations/rate-limits`, and `/operations/webhooks` require `notification:operations:read` and return authorized aggregates/redacted rows. The canonical high-volume paths are `GET /v1/notifications/deliveries` and `GET /v1/notifications/dead-letters`; both use the mandatory `(created_at,id)` keyset contract.
+
+`POST /dead-letters/:deliveryId/replay-preview` and `/replay` require `notification:operations:replay`; replay additionally requires expected version, reason, idempotency, and MFA/recent auth where policy says. Replay selects the source request established by preview. Success returns the new request plus `parentRequestId`, `rootRequestId`, `replayDepth`, new correlation ID, and replay command ID. The server sets ancestry from locked same-tenant rows; clients cannot choose an unrelated parent. Tenant operations cannot inspect another tenant or provider-global secrets.
 
 Metrics include queue depth/oldest age, scheduled/due, leased/sending age, delivered/accepted/suppressed/failure rates, retry/dead-letter counts, provider/failover/rate-limit health, callback lag, inbox unread count, and recipient-resolution failures with bounded labels.
 

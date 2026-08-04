@@ -1,6 +1,6 @@
 # WF-2 Evidence Plan
 
-Status: Required implementation deliverable
+Status: Approved implementation deliverable with required changes incorporated
 
 ## Evidence artifact
 
@@ -23,6 +23,8 @@ Implementation must produce `docs/ecogov/WF2_EVIDENCE.md` containing reproducibl
 13. Legacy invitation and WF-1 assignment/SLA/escalation/completion equivalence mapping.
 14. Rollout flags/canary results, provider activation record, rollback drill and queue disposition.
 15. Known limitations and every independent-review finding mapped to final disposition.
+16. Post-review proof for stuck-`sending` recovery, composite tenant FKs, replay lineage/correlation/audit, full failover policy re-evaluation, rate partition cleanup, keyset pagination, IAM cache invalidation/database fallback, binding semantic integrity, and 72/24-hour confirmation expiry.
+17. Legacy invitation fallback telemetry `notification.compatibility.invitation.legacy_fallback_count` and token-bucket/sliding-window boundary-burst evidence.
 
 ## Evidence rules
 

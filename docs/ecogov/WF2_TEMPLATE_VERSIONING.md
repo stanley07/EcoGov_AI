@@ -1,6 +1,6 @@
 # WF-2 Template Versioning
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Ownership model
 
@@ -22,7 +22,7 @@ Exact version states are `draft`, `validating`, `published`, and `deprecated`.
 - `published -> deprecated`: stops new bindings/requests; existing pinned requests and deliveries continue.
 - No other transition is allowed. `deprecated -> published` is forbidden.
 
-Published versions are immutable, including variable schema, channel renderings, locale, sender profile key, classification, security flags, and content hash. Lifecycle timestamps, status, and binding/default rotation are the only approved post-publication mutations. Default rotation is atomic between published versions and cannot create zero or multiple defaults where a required binding exists.
+Published versions are immutable, including variable schema, channel renderings, locale, sender profile key, classification, security flags, and content hash. Lifecycle timestamps, status, and binding/default rotation are the only approved post-publication mutations. Default rotation is atomic between published versions and cannot create zero or multiple defaults where a required binding exists. Rotation locks the binding and candidate version and proves the candidate version's parent template owns the exact `application_key` and `semantic_key`; a published version for another semantic key is rejected even if ownership and channel otherwise match.
 
 ## Rendering language
 

@@ -1,6 +1,6 @@
 # WF-2 Verification Checklist
 
-Status: Required implementation/review gate
+Status: Approved implementation/review gate with required changes incorporated
 
 ## Preflight and migration
 
@@ -21,6 +21,9 @@ Status: Required implementation/review gate
 - [ ] Atomic default binding rotation; no draft/deprecated default; no multiple defaults.
 - [ ] Ordered request history has no gaps/duplicates under concurrency.
 - [ ] Terminal delivery/request states cannot reopen; replay creates linked new request.
+- [ ] Expired `leased` and `sending` rows are recovered; proven non-acceptance requeues, proven acceptance/delivery advances, ambiguity dead-letters, and no row remains permanently stuck.
+- [ ] Email 72-hour and SMS/webhook 24-hour confirmation windows expire deterministically without blind resend.
+- [ ] Replay parent/root/depth, correlation, same-tenant composite FK, cycle/depth prevention, and parent/child audit pass.
 
 ## Templates
 
@@ -34,6 +37,7 @@ Status: Required implementation/review gate
 - [ ] Direct user/destination, role, organization, work item, and escalation selectors pass positive and negative tests.
 - [ ] Cross-tenant/org, inactive tenant/org/user/membership, guessed IDs, ambiguous/empty queues fail closed.
 - [ ] Fan-out limits and deterministic dedupe hold under concurrent resolution.
+- [ ] IAM membership/user/role/org changes immediately invalidate candidate caches; failed/late invalidation cannot authorize because transactional resolution and pre-delivery revalidation suppress stale recipients.
 - [ ] Exact precedence tests cover mandatory, tenant policy, opt-out, quiet hours/DST, emergency override, and non-bypassable suppression.
 - [ ] Destinations/content encrypted; only masks/digests/IDs appear in APIs, logs, metrics, task results, audit, and errors.
 - [ ] Retention, legal hold, purge, and cryptographic erasure behaviors pass.
@@ -45,8 +49,11 @@ Status: Required implementation/review gate
 - [ ] Exact classification and transition tests for transient/permanent/suppressed/rate-limited/unknown/dead-lettered.
 - [ ] Backoff/jitter/Retry-After/max-attempt/max-age bounds pass with deterministic clock.
 - [ ] Pre-acceptance failover succeeds; permanent and ambiguous post-send outcomes never unsafe-failover.
+- [ ] Every failover candidate re-evaluates residency, classification, tenant/org policy, provider/sender/secret/security eligibility, limits, and expiry; route order never bypasses a failed check.
 - [ ] Provider idempotency, callback races, delayed bounce/delivery, health routing, empty/misconfigured route fail-closed.
 - [ ] Local/provider rate limits atomic; no cross-tenant starvation or high-cardinality metric labels.
+- [ ] Daily rate-limit partitions, active-window indexes, 7-day cleanup, future partition creation, failure alerting, and aggregate-metric retention pass at scale.
+- [ ] Token-bucket/sliding-window rate limiting prevents fixed-window boundary bursts.
 
 ## Webhooks
 
@@ -61,6 +68,8 @@ Status: Required implementation/review gate
 - [ ] Session version, active membership, tenant/org resource predicates, expected version, idempotency, and deny audit enforced.
 - [ ] Administrative reads are redacted/paginated; replay/cancel/rotation are reasoned, idempotent, and MFA/recent-auth protected where required.
 - [ ] Inbox user ownership and read/unread/archive concurrency pass.
+- [ ] Requests, deliveries, dead letters, and inbox reject offset pagination and pass stable `(created_at,id)` cursor traversal with filter-bound cursors and concurrent inserts.
+- [ ] Template binding rotation rejects a published version whose parent template does not own the exact application/semantic key.
 - [ ] UI keyboard, label, focus, contrast, status-not-color, responsive, reduced-motion, and screen-reader tests pass.
 - [ ] Manual acceptance covers inbox, preferences, template flow, endpoint verification, operations/dead-letter preview, and denied scopes.
 
@@ -68,6 +77,7 @@ Status: Required implementation/review gate
 
 - [ ] Legacy invitation create/resend/revoke/expiry, duplicate, concurrency, retry, failure, restart, and development mailbox equivalence.
 - [ ] Existing task type/payload secrecy remains valid during compatibility period.
+- [ ] Every legacy invitation payload increments `notification.compatibility.invitation.legacy_fallback_count` once without sensitive/high-cardinality labels.
 - [ ] WF-1 assignment, SLA reminder, breach/escalation, completion, cancellation, duplicate event, and recipient-empty tests.
 - [ ] Notification failure does not roll back workflow command/event ordering or change pinned workflow version.
 - [ ] Unknown outbox event types preserve existing behavior.

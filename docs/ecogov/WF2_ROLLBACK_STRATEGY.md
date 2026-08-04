@@ -1,6 +1,6 @@
 # WF-2 Rollback Strategy
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Principle
 
@@ -39,6 +39,7 @@ Only on a disposable/pre-production database: stop consumers, export redacted co
 
 - `queued/scheduled/transient_failed/rate_limited`: pause, then resume with same deterministic identities.
 - `leased/sending`: allow lease/reconciliation; never duplicate via immediate fallback.
+- An expired `sending` row is reconciled under fencing: confirmed non-acceptance may return to `queued`, confirmed acceptance/delivery advances, and ambiguity moves to `dead_lettered`; rollback never leaves it stranded.
 - `provider_accepted`: await callback/reconcile or expire by pinned policy.
 - terminal deliveries/history/attempts: immutable.
 - dead letters: remain for authorized preview/replay after recovery.

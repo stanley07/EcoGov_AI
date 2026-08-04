@@ -1,6 +1,6 @@
 # WF-2 Security Model
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Trust boundaries
 
@@ -48,6 +48,7 @@ Authenticate actor/service; validate active tenant; validate session version/cur
 - Tenant `super_admin` override exists only for tenant-wide reads/actions explicitly documented by API; it is never a platform override and never bypasses destination privacy.
 - Organization administrators remain limited to assigned organizations and cannot publish platform/application templates or manage provider-global credentials.
 - Workers carry tenant/resource IDs from protected task payloads and re-resolve the delivery under those predicates before decrypting.
+- Recipient/membership caches are never authorization evidence. IAM changes publish immediate tenant-qualified invalidation, and resolution plus just-in-time delivery eligibility are transactionally revalidated in PostgreSQL whenever freshness cannot be proven.
 
 ## Privacy and data protection
 
@@ -61,7 +62,7 @@ Authenticate actor/service; validate active tenant; validate session version/cur
 
 ## Webhook security
 
-- Endpoint creation accepts HTTPS only, normalizes origin, blocks userinfo/fragments, private/link-local/loopback/metadata/reserved networks, validates every DNS result, and pins/revalidates resolution to resist DNS rebinding.
+- Endpoint creation accepts HTTPS only, normalizes origin, blocks userinfo/fragments, private/link-local/loopback/metadata/reserved networks, validates every DNS result, and pins/revalidates resolution to resist DNS rebinding. The outbound client disables DNS caching, resolves and checks every IPv4/IPv6 result immediately before every connection/retry, pins the socket to the approved IP, and preserves TLS hostname/SNI verification.
 - Ownership verification uses a short-lived one-time challenge before activation. Redirects are disabled or revalidated within the exact verified origin.
 - Outbound body is canonical bytes. Sign `version.timestamp.nonce.bodyDigest` using HMAC-SHA256 initially; Ed25519 may be added only as a reviewed provider capability.
 - Headers include key ID, timestamp, nonce, event ID, and signature. Timestamp skew and nonce/callback IDs enforce replay windows.

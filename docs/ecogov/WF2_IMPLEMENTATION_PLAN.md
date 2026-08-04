@@ -1,6 +1,6 @@
 # WF-2 Notification Platform Implementation Plan
 
-Status: Proposed; implementation is not authorized by this document
+Status: Approved architecture plan with required review changes incorporated
 
 ## Objective
 
@@ -56,6 +56,10 @@ Inventory is from tag `wf-1-complete` (`5c3fcb16b2511eeb37de3f8f911de8188d9752d2
 - Every request/delivery/recipient/inbox query starts with tenant and organization scope.
 - Notification failure cannot roll back committed workflow/domain state.
 - At-least-once transport and outcome-level duplicate prevention are stated accurately.
+- No `sending` row can remain without a due fenced recovery action; reconciliation determines retry or dead-letter eligibility.
+- Replay ancestry uses same-tenant `parent_request_id`, new correlation/idempotency identities, bounded depth, and dual parent/child audit.
+- Every failover reruns the complete tenant/organization/residency/security/provider eligibility pipeline.
+- Recipient caches hold candidates only; IAM invalidation is immediate and final database eligibility checks are transactional.
 
 ## Database changes
 
@@ -75,6 +79,8 @@ Migration sequence:
 6. install compatibility mapping for invitation and WF-1 event types;
 7. verify no existing task/outbox row mutation;
 8. official runner rerun must apply zero.
+
+Migration 34 uses tenant-qualified composite foreign keys for every child relationship listed in `WF2_DATABASE_MODEL.md`, adds replay lineage, enforces binding semantic-key integrity, and partitions transient rate-limit buckets daily with bounded retention/cleanup. It adds no single-column tenant-child shortcut.
 
 ## Proposed code boundaries
 
@@ -104,6 +110,8 @@ Implement only `WF2_API_SPECIFICATION.md`. Add inbox navigation, preference cont
 5. Callback intake verifies raw-body signatures/replay, appends callback receipt, and advances matched delivery by CAS.
 6. Dead-letter reconciliation and replay remain administrative commands, never background state rewrites.
 
+The recovery sweeper treats an expired `sending` lease as a reconciliation command, not a send command: confirmed non-acceptance may requeue after all eligibility/budget checks; confirmed acceptance/delivery advances state; ambiguity dead-letters. Confirmation expiry defaults are 72 hours for email and 24 hours for SMS/webhook.
+
 Worker readiness exposes last successful poll, oldest due item, in-flight count, lease loss, dead letters, provider health, callback lag, and stopping state without payloads.
 
 ## WF-1 integration
@@ -113,6 +121,7 @@ Register exact event mappings for assignment, SLA reminder, SLA breach/escalatio
 ## Compatibility plan
 
 - Retain `govos.notification.invitation.send` and its encrypted payload contract during dual-write/shadow validation.
+- Every processed legacy invitation payload increments the bounded-label metric `notification.compatibility.invitation.legacy_fallback_count`; this metric contains no tenant, destination, or token label and is the retirement gate.
 - The adapter creates/replays a canonical notification request using the legacy task ID as producer idempotency identity, then canonical delivery performs the effect.
 - Preserve worker-side decryption, activation-token secrecy, masked logs, max-attempt behavior, and development mailbox ID/lifecycle.
 - Equivalence tests cover invitation create/resend/revoke/expired, duplicate, concurrent claim, retry, permanent failure, development delivery/open, production-disabled development provider, rollback, and restart recovery.
@@ -151,6 +160,8 @@ Database/concurrency tests: migration apply/no-op/rollback/reapply, FKs/checks/i
 Integration/equivalence tests: every selector/channel, cross-tenant/org denial, inactive memberships, empty queues, opt-out/mandatory/emergency cases, invitation legacy paths, WF-1 assignment/SLA/escalation/completion, provider pre-acceptance failover/ambiguous outcome, development mailbox, restart recovery.
 
 System/UI tests: inbox lifecycle, admin permissions, dashboard redaction, webhook verification/rotation, accessibility, production configuration fail-closed.
+
+Performance/security tests additionally cover keyset pagination for requests/deliveries/dead letters/inbox, token-bucket/sliding-window boundary behavior, daily rate-bucket partition creation/drop, immediate IAM cache invalidation plus database fallback, semantic-key binding mismatch, full failover policy re-evaluation, replay chains/correlation/audit, legacy fallback telemetry, and 72/24-hour confirmation expiry.
 
 ## Acceptance criteria
 

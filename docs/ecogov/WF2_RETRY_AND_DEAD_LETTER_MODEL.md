@@ -1,6 +1,6 @@
 # WF-2 Retry and Dead-Letter Model
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Retry policy
 
@@ -9,6 +9,7 @@ Status: Proposed for independent review
 - Backoff is exponential with full jitter, capped at 15 minutes, and respects a bounded provider `Retry-After` when valid.
 - Retry scheduling uses database time. A retry creates a new append-only attempt but retains one delivery identity.
 - Lease loss is not itself a provider retry if the external outcome is unknown; it follows unknown-outcome reconciliation rules.
+- A delivery in `sending` at lease expiry is never left untouched and is never blindly retried. The recovery sweeper reconciles it and transitions it to `queued`, `provider_accepted`, `delivered`, `expired`, or `dead_lettered` under the exact state-machine rules.
 
 ## Classification table
 
@@ -22,6 +23,8 @@ Status: Proposed for independent review
 | `dead_lettered` | attempts/age exhausted, missing immutable dependency, misconfigured route/secret, invariant violation, unresolved unknown | terminal operational queue; manual preview/replay only                                    |
 
 Provider adapters return normalized evidence; they do not choose retry policy. Unrecognized errors classify as `unknown`, never transient by default.
+
+Before retrying through a different provider, the failover engine reruns the complete eligibility pipeline for that candidate: residency, classification, tenant policy, organization policy, channel/sender/endpoint ownership, secret/key status, provider capabilities/health, security restrictions, rate/cost limits, request expiry, recipient eligibility, and suppression. A retry classification authorizes reconsideration only; it never authorizes policy bypass.
 
 ## Idempotency and deduplication
 
@@ -39,13 +42,17 @@ Dead-letter records are delivery rows plus immutable attempts/history; no duplic
 
 Replay requires `notification:operations:replay`, recent authentication/MFA where policy requires, reason, expected version, and idempotency key. It performs a dry-run preview of current template/provider/recipient dependencies. Approval creates a new linked notification request; it never changes the old terminal state or deletes attempts. High-classification, mandatory, emergency, and bulk-like replays may require dual control.
 
+Every replay sets the new request's `parent_request_id` to the immediate source request using a same-tenant composite foreign key. A replay chain preserves every ancestor; API responses expose `parentRequestId`, `rootRequestId`, and bounded `replayDepth`. The new request receives its own request/correlation/idempotency identities and stores the originating replay command ID plus the parent's correlation ID. The replay transaction appends redacted audit/history entries to both parent and child with actor, reason code, parent/child IDs, preview hash, and correlation IDs. Creation-only lineage, a maximum depth of 20, and same-tenant locking prevent cycles and runaway replay chains.
+
 ## Crash recovery
 
 - Claim uses bounded `FOR UPDATE SKIP LOCKED`/fenced update.
 - Every heartbeat/complete/fail verifies tenant, task ID, owner, fencing token, processing state, and unexpired lease.
 - Expired pre-send leases return to claimable state.
-- Expired leases after provider invocation use provider reconciliation/idempotency capability; ambiguous outcomes dead-letter.
+- Expired `sending` leases run provider reconciliation before any retry. Confirmed non-acceptance returns to `queued` if budgets/policy still permit; confirmed acceptance/delivery advances accordingly; ambiguous or unsupported reconciliation dead-letters.
 - Startup scans expired leases, overdue schedules, stuck `resolving` requests, callbacks awaiting match, and provider-accepted deliveries awaiting confirmation.
+
+Recovery is itself leased/fenced and bounded. Reconciliation retries use a separate bounded recovery budget and never extend the delivery's maximum elapsed age. There is therefore no non-terminal `sending` path without a due recovery action.
 
 ## Alerts and metrics
 

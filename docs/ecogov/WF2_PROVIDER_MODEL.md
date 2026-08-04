@@ -1,6 +1,6 @@
 # WF-2 Provider Model
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Provider contract
 
@@ -38,6 +38,8 @@ Empty or misconfigured routes fail closed to `dead_lettered` with an operational
 - Each route entry is attempted at most once per logical attempt cycle; total attempts and elapsed age remain globally bounded.
 - Provider health is a routing input, never authority to bypass tenant policy.
 
+Before every failover attempt, including one within the same logical attempt cycle, the router reruns the complete eligibility pipeline against current and pinned constraints: data residency, data classification, tenant policy, organization policy, channel enablement, sender/domain verification, endpoint ownership, secret/key status, provider capability/health, security restrictions, rate/cost limits, and request expiry. The next route index is only a candidate. Failure of any check skips that candidate with redacted evidence; an empty eligible set fails closed to `dead_lettered`. A failover can never inherit eligibility from the primary provider or bypass policy evaluation because of urgency, retry class, or provider outage.
+
 ## Channel-specific rules
 
 - Email: verified sender/domain; header injection prevention; bounded subject/body/attachments; unsubscribe only for optional categories; bounce/complaint callbacks update suppression.
@@ -45,6 +47,8 @@ Empty or misconfigured routes fail closed to `dead_lettered` with an operational
 - In-app: no external provider; transactional inbox projection is the adapter effect; same tenant/user only.
 - Webhook: verified HTTPS endpoint, signed timestamped body, SSRF-safe resolution, strict timeout/body bounds, 2xx success only.
 - Push: reserved provider capability only; no WF-2 implementation or active route.
+
+For outbound webhooks, every initial attempt and retry disables application/client DNS caching, resolves immediately before connection, validates every returned IPv4/IPv6 address against private, loopback, link-local, multicast, reserved, and cloud-metadata ranges, and pins the socket to the verified address while preserving TLS hostname/SNI verification. Redirects are disabled or fully revalidated through the same sequence. A DNS or policy change never inherits approval from a prior attempt.
 
 ## Secrets and configuration
 

@@ -1,6 +1,6 @@
 # WF-2 Recipient Resolution
 
-Status: Proposed for independent review
+Status: Approved with required review changes incorporated
 
 ## Exact selector vocabulary
 
@@ -19,6 +19,10 @@ Every selector includes `tenant_id`; all except an explicitly tenant-wide mandat
 7. Deduplicate users and destination digests deterministically.
 8. Persist immutable recipient/destination snapshots and decision reason codes in the request transaction.
 9. If a required selector resolves empty or ambiguously, fail closed; do not broaden to a tenant-wide or platform audience.
+
+PostgreSQL remains the authorization authority. A cache may hold only non-authoritative candidate IDs or normalized public metadata; it may never establish active user, membership, role, tenant, organization, or destination eligibility. Final recipient resolution performs a transactional database query. Immediately before every external delivery, the worker revalidates active tenant, organization, user, membership/role where selector-derived, destination verification, and suppression under the snapshot's tenant/org predicates. The immutable snapshot preserves who was resolved and why; revalidation may suppress delivery but never replace the recipient with a broader audience.
+
+IAM user, membership, role assignment, organization lifecycle, destination verification, and session-security mutations must publish an after-commit invalidation keyed by tenant/user/organization/role to every notification process and evict matching candidate-cache entries immediately. Cache entries also use a short bounded TTL and tenant-qualified keys. Invalidation is an optimization, not a safety dependency: if publication, delivery, or freshness cannot be proven, the resolver bypasses the cache and the transactional database validation is mandatory.
 
 ## Selector rules
 
