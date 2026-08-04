@@ -42,11 +42,11 @@ describe.sequential("IAM Gate 3 tenant role catalog reconciliation", () => {
     await pool.end();
   });
 
-  test("manifest is 25 unique tenant-only names", () => {
+  test("manifest is 45 unique tenant-only names including WF-1", () => {
     expect(Array.isArray(TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS)).toBe(true);
     expect(typeof TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS[Symbol.iterator]).toBe("function");
     expect(TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS).toHaveLength(12);
-    expect(new Set(TENANT_SUPER_ADMIN_PERMISSION_MANIFEST).size).toBe(25);
+    expect(new Set(TENANT_SUPER_ADMIN_PERMISSION_MANIFEST).size).toBe(45);
     expect(TENANT_SUPER_ADMIN_PERMISSION_MANIFEST.some((name) => name.startsWith("platform.") || name.startsWith("PLATFORM_"))).toBe(false);
   });
 

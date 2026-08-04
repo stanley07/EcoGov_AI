@@ -227,6 +227,10 @@ export const navigationGroups: NavigationGroupConfig[] = [
         icon: "⚙️",
         targetTab: "settings",
       },
+      { id: "workflow-definitions", label: "Workflow Definitions", targetTab: "workflow-definitions", requiredPermission: "workflow:definition:read", tenantOnly: true },
+      { id: "workflow-instances", label: "Workflow Instances", targetTab: "workflow-instances", requiredPermission: "workflow:instance:read", tenantOnly: true },
+      { id: "workflow-tasks", label: "My Tasks", targetTab: "workflow-tasks", requiredPermission: "workflow:work-item:read", tenantOnly: true },
+      { id: "workflow-operations", label: "SLA & Escalations", targetTab: "workflow-operations", requiredPermission: "workflow:operations:read", tenantOnly: true },
     ],
   },
 ];

@@ -16,6 +16,7 @@ import { AccountSecurityPage } from "./iam/AccountSecurityPage.js";
 import { UserSecurityPage } from "./iam/UserSecurityPage.js";
 import { OrganizationsPage } from "./iam/OrganizationsPage.js";
 import { OrganizationDetailPage } from "./iam/OrganizationDetailPage.js";
+import { WorkflowWorkspace } from "./workflows/WorkflowWorkspace.js";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -97,6 +98,15 @@ export const resolveSessionPermissions = (roles: string[]): string[] => {
     permissions.add(permission);
   }
   if (roles.includes("super_admin")) {
+    for (const permission of [
+      "workflow:definition:read", "workflow:definition:create", "workflow:definition:update",
+      "workflow:definition:validate", "workflow:definition:publish", "workflow:instance:read",
+      "workflow:instance:start", "workflow:instance:suspend", "workflow:instance:resume",
+      "workflow:instance:cancel", "workflow:instance:repair", "workflow:work-item:read",
+      "workflow:work-item:claim", "workflow:work-item:assign", "workflow:work-item:complete",
+      "workflow:policy:read", "workflow:policy:write", "workflow:policy:publish",
+      "workflow:audit:read", "workflow:operations:read",
+    ]) permissions.add(permission);
     permissions.add("org:read");
     permissions.add("org:write");
     permissions.add("user:read");
@@ -1426,6 +1436,10 @@ function App() {
 
         {activeTab === "account-security" && <AccountSecurityPage apiBaseUrl={API_BASE_URL} token={token} />}
         {activeTab === "user-security" && <UserSecurityPage apiBaseUrl={API_BASE_URL} token={token} userId={matchRoute(window.location.hash)?.params.userId || ""} />}
+        {activeTab === "workflow-definitions" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="definitions" />}
+        {activeTab === "workflow-instances" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="instances" />}
+        {activeTab === "workflow-tasks" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="tasks" />}
+        {activeTab === "workflow-operations" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="operations" />}
 
         {/* Planned roadmap modules */}
         {activeTab === "audits" && (

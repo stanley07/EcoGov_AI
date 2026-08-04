@@ -1,0 +1,21 @@
+import fs from "node:fs";
+import {describe,expect,test} from "vitest";
+import { validateEnterpriseWorkflowModel, WORKFLOW_PERMISSIONS } from "@govos/core";
+const migration=fs.readFileSync('packages/database/migrations/000031_enterprise_workflow_engine.sql','utf8');
+const routes=fs.readFileSync('apps/api/src/routes/workflows.ts','utf8');
+const engine=fs.readFileSync('modules/govos-core/src/workflow-engine.ts','utf8');
+describe('WF-1 architecture contract',()=>{
+ test('validates and hashes a complete sequential graph',()=>{const model={steps:[{key:'start',type:'human_review',entry:true},{key:'done',type:'domain_command',terminal:true}],transitions:[{key:'finish',from:'start',to:'done',outcome:'finish'}]};expect(validateEnterpriseWorkflowModel(model)).toMatchObject({valid:true,stepCount:2,transitionCount:1});});
+ test('rejects unreachable, duplicate, and arbitrary executable states',()=>{expect(()=>validateEnterpriseWorkflowModel({steps:[{key:'start',type:'javascript',entry:true},{key:'done',type:'domain_command',terminal:true}],transitions:[{key:'x',from:'start',to:'done',outcome:'x'}]})).toThrow(/Unregistered/);});
+ test('approved permission vocabulary has exactly twenty tenant permissions',()=>{expect(WORKFLOW_PERMISSIONS).toHaveLength(20);expect(new Set(WORKFLOW_PERMISSIONS).size).toBe(20);});
+ test('migration is additive and extends the approved existing workflow substrate',()=>{expect(migration).toContain('ALTER TABLE workflow_definition');expect(migration).toContain('ALTER TABLE workflow_instance');expect(migration).not.toMatch(/DROP TABLE\s+workflow_/i);});
+ test('tenant-composite foreign keys protect all WF-1 aggregates',()=>{for(const table of ['workflow_event','workflow_command','workflow_work_item','workflow_timer','workflow_sla_clock','workflow_ai_recommendation'])expect(migration).toContain(`CREATE TABLE ${table}`);expect((migration.match(/FOREIGN KEY\(tenant_id/g)||[]).length).toBeGreaterThan(15);});
+ test('events and assignment history are append-only',()=>{expect(migration).toContain('workflow_event_immutable');expect(migration).toContain('workflow_work_item_history_immutable');});
+ test('active queues and due timers use bounded partial indexes',()=>{expect(migration).toContain('idx_wf_work_queue');expect(migration).toContain("WHERE status='pending'");});
+ test('runtime reuses durable task execution and never executes dynamic code',()=>{expect(engine).toContain('INSERT INTO task_execution');expect(engine).not.toMatch(/eval\(|new Function|child_process/);});
+ test('commands enforce idempotency hashes and optimistic versions',()=>{expect(engine).toContain('WF_IDEMPOTENCY_CONFLICT');expect(engine).toContain('WF_VERSION_CONFLICT');expect(engine).toContain('FOR UPDATE');});
+ test('AI recommendation acceptance cannot mutate state directly',()=>{expect(engine).toContain('workflow_ai_recommendation');expect(engine).not.toContain('acceptRecommendation');});
+ test('new routes use only exact workflow permissions',()=>{expect(routes).not.toContain("'user:write'");expect(routes).not.toMatch(/startsWith\([^)]*workflow/);expect(routes).toContain("'workflow:definition:publish'");});
+ test('all resource reads carry tenant predicates',()=>{expect(routes).not.toMatch(/WHERE id=\$1/);expect(routes).toContain('WHERE i.tenant_id=$1');expect(routes).toContain('WHERE w.tenant_id=$1');});
+ test('platform permissions are absent from tenant workflow routes',()=>expect(routes).not.toMatch(/platform\./));
+});

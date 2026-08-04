@@ -1,0 +1,12 @@
+import crypto from "node:crypto";import fs from "node:fs";import pg from "pg";
+const pool=new pg.Pool({connectionString:process.env.DATABASE_URL});
+try{const migrations=await pool.query(`SELECT version,checksum FROM schema_migrations ORDER BY version`);const files=fs.readdirSync('packages/database/migrations').filter(f=>f.endsWith('.sql'));const disk=new Map(files.map(f=>[Number(f.slice(0,6)),crypto.createHash('sha256').update(fs.readFileSync('packages/database/migrations/'+f,'utf8')).digest('hex')]));const q=await pool.query(`SELECT
+(SELECT count(*) FROM workflow_version v LEFT JOIN workflow_definition d ON d.tenant_id=v.tenant_id AND d.id=v.definition_id WHERE d.id IS NULL)::int orphan_versions,
+(SELECT count(*) FROM workflow_instance i LEFT JOIN workflow_version v ON v.tenant_id=i.tenant_id AND v.id=i.version_id WHERE v.id IS NULL)::int instances_without_pinned_versions,
+(SELECT count(*) FROM workflow_instance i JOIN workflow_version v ON v.id=i.version_id WHERE i.tenant_id<>v.tenant_id OR i.definition_id<>v.definition_id)::int cross_tenant_workflow_references,
+(SELECT count(*) FROM workflow_work_item w LEFT JOIN organization o ON o.id=w.organization_id WHERE w.organization_id IS NOT NULL AND (o.id IS NULL OR o.tenant_id<>w.tenant_id))::int cross_organization_work_items,
+(SELECT count(*) FROM (SELECT tenant_id,step_execution_id FROM workflow_work_item WHERE status IN ('open','claimed','in_progress') GROUP BY 1,2 HAVING count(*)>1)x)::int duplicate_active_work_items,
+(SELECT count(*) FROM (SELECT tenant_id,idempotency_key FROM workflow_timer GROUP BY 1,2 HAVING count(*)>1)x)::int duplicate_timer_actions,
+(SELECT count(*) FROM (SELECT tenant_id,instance_id,sequence_number,lag(sequence_number) OVER(PARTITION BY tenant_id,instance_id ORDER BY sequence_number) prior FROM workflow_event)x WHERE prior IS NOT NULL AND sequence_number<>prior+1)::int event_sequence_violations,
+(SELECT count(*) FROM workflow_timer WHERE status='leased' AND lease_expires_at<NOW())::int stale_timer_leases,
+(SELECT count(*) FROM role_permission rp JOIN permission p ON p.id=rp.permission_id WHERE p.name LIKE 'workflow:%' AND (p.name LIKE 'platform.%' OR p.name='user:write'))::int platform_permission_mappings`);console.log(JSON.stringify({highestMigration:Math.max(...migrations.rows.map(r=>Number(r.version))),checksumMismatches:migrations.rows.filter(r=>disk.get(Number(r.version))!==r.checksum).map(r=>Number(r.version)),...q.rows[0]},null,2));}finally{await pool.end();}

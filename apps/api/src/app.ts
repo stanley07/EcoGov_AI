@@ -23,6 +23,7 @@ import { marketplaceRoutes } from "./routes/marketplace.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { tenantIamRoutes } from "./routes/tenant-iam.js";
 import { accountSecurityRoutes } from "./routes/account-security.js";
+import { workflowRoutes } from "./routes/workflows.js";
 
 
 // Extend Fastify request interface
@@ -211,6 +212,7 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
   app.register(dashboardRoutes, { pool });
   app.register(tenantIamRoutes, { pool });
   app.register(accountSecurityRoutes, { pool });
+  app.register(workflowRoutes, { pool });
 
   return app;
 }

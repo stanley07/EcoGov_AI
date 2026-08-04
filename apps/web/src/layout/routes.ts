@@ -6,7 +6,7 @@ export type AppTab =
   | "dashboard" | "registry" | "wizard" | "queue" | "settings" | "platform"
   | "subcontractor-apply" | "subcontractor-status" | "audits" | "inspections"
   | "incidents" | "permits" | "compliance" | "enforcement" | "waste"
-  | "monitoring" | "gis" | "reports" | "verify-licence" | "accept-invitation" | "users-access" | "account-security" | "user-security" | "organizations" | "organization-detail" | "denied";
+  | "monitoring" | "gis" | "reports" | "verify-licence" | "accept-invitation" | "users-access" | "account-security" | "user-security" | "organizations" | "organization-detail" | "workflow-definitions" | "workflow-instances" | "workflow-tasks" | "workflow-operations" | "denied";
 
 export type EcoGovRouteDefinition = {
   id: AppTab;
@@ -48,7 +48,11 @@ const routeMetadata: Record<AppTab, Pick<EcoGovRouteDefinition, "label" | "group
   "user-security": { label: "User Security", group: "administration", breadcrumb: ["Administration", "Users & Access", "Security"], order: 23, visibleInNavigation: false },
   organizations: { label: "Organizations", group: "administration", breadcrumb: ["Administration", "Organizations"], order: 24, visibleInNavigation: true },
   "organization-detail": { label: "Organization", group: "administration", breadcrumb: ["Administration", "Organizations", "Organization"], order: 25, visibleInNavigation: false },
-  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 26, visibleInNavigation: false },
+  "workflow-definitions": { label: "Workflow Definitions", group: "administration", breadcrumb: ["Administration", "Workflows", "Definitions"], order: 26, visibleInNavigation: true },
+  "workflow-instances": { label: "Workflow Instances", group: "administration", breadcrumb: ["Administration", "Workflows", "Instances"], order: 27, visibleInNavigation: true },
+  "workflow-tasks": { label: "My Tasks", group: "administration", breadcrumb: ["Workflows", "My Tasks"], order: 28, visibleInNavigation: true },
+  "workflow-operations": { label: "SLA & Escalations", group: "administration", breadcrumb: ["Administration", "Workflows", "SLA & Escalations"], order: 29, visibleInNavigation: true },
+  denied: { label: "Access Restricted", group: "administration", breadcrumb: ["Restricted"], order: 30, visibleInNavigation: false },
 };
 const defineRoute = (route: RouteInput): EcoGovRouteDefinition => ({ ...routeMetadata[route.id], ...route });
 
@@ -82,6 +86,10 @@ export const routesRegistry: readonly EcoGovRouteDefinition[] = ([
   { id: "user-security", path: "#/administration/users/:userId/security", accessBoundary: "authenticated", requiredPermission: "user:read", implementationStatus: "available" },
   { id: "organizations", path: "#/administration/organizations", accessBoundary: "authenticated", requiredPermission: "org:read", implementationStatus: "available" },
   { id: "organization-detail", path: "#/administration/organizations/:organizationId", accessBoundary: "authenticated", requiredPermission: "org:read", implementationStatus: "available" },
+  { id: "workflow-definitions", path: "#/administration/workflows", accessBoundary: "authenticated", requiredPermission: "workflow:definition:read", implementationStatus: "available" },
+  { id: "workflow-instances", path: "#/administration/workflow-instances", accessBoundary: "authenticated", requiredPermission: "workflow:instance:read", implementationStatus: "available" },
+  { id: "workflow-tasks", path: "#/workflows/tasks", accessBoundary: "authenticated", requiredPermission: "workflow:work-item:read", implementationStatus: "available" },
+  { id: "workflow-operations", path: "#/administration/workflow-operations", accessBoundary: "authenticated", requiredPermission: "workflow:operations:read", implementationStatus: "available" },
   { id: "account-security", path: "#/account/security", accessBoundary: "authenticated", implementationStatus: "available" },
   { id: "denied", path: "#/_denied", accessBoundary: "authenticated", implementationStatus: "available" },
 ] satisfies readonly RouteInput[]).map(defineRoute);
@@ -94,6 +102,8 @@ export const LEGACY_TAB_ROUTES: Readonly<Record<Exclude<AppTab, "denied">, strin
   "user-security": "#/administration/users",
   organizations: "#/administration/organizations",
   "organization-detail": "#/administration/organizations",
+  "workflow-definitions": "#/administration/workflows", "workflow-instances": "#/administration/workflow-instances",
+  "workflow-tasks": "#/workflows/tasks", "workflow-operations": "#/administration/workflow-operations",
   "subcontractor-apply": "#/subcontractor-apply", "subcontractor-status": "#/marketplace/status",
   "verify-licence": "#/verify-licence",
   "accept-invitation": INVITATION_ACCEPTANCE_HASH_ROUTE,
