@@ -26,6 +26,7 @@ import {
   AgentResult,
   DEFAULT_BUDGET,
 } from "@govos/ai";
+export { WorkflowRuntimeWorker } from "./workflow-runtime.js";
 
 export interface TaskRecord {
   readonly id: string;
@@ -942,4 +943,3 @@ export class ComplaintTriageTaskExecutor implements TaskExecutor {
     };
   }
 }
-

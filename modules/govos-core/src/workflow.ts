@@ -1,5 +1,6 @@
 import { PoolClient } from "pg";
 import { checkAndAssertActiveTenant } from "./platform-admin/tenant-guards.js";
+import { EnterpriseWorkflowEngine } from "./workflow-engine.js";
 
 export interface WorkflowStepValidation {
   readonly stepName: string;
@@ -102,7 +103,7 @@ export async function createWorkflowInstance(
     FROM workflow_version v
     JOIN workflow_definition d ON d.tenant_id = v.tenant_id AND d.id = v.definition_id
     JOIN workflow_step_definition s ON s.tenant_id = v.tenant_id AND s.version_id = v.id
-    WHERE v.tenant_id = $1 AND d.name = $2 AND v.status = 'active' AND s.is_entry_step = TRUE
+    WHERE v.tenant_id = $1 AND d.name = $2 AND v.status = 'published' AND v.is_default AND s.is_entry_step = TRUE
     LIMIT 1
   `;
   const versionRes = await client.query(versionQuery, [tenantId, workflowName]);
@@ -126,7 +127,7 @@ export async function createWorkflowInstance(
   // 3. Create initial step execution
   const stepExecRes = await client.query(
     `INSERT INTO workflow_step_execution (tenant_id, workflow_instance_id, step_definition_id, status, actor_type, notes)
-     VALUES ($1, $2, $3, 'pending', 'system', 'Workflow instance initialized')
+     VALUES ($1, $2, $3, 'ready', 'system', 'Workflow instance initialized')
      RETURNING id`,
     [tenantId, instanceId, step_def_id],
   );
@@ -155,7 +156,7 @@ export async function transitionWorkflowInstance(
   actorId?: string,
   notes?: string,
 ): Promise<string | null> {
-  await checkAndAssertActiveTenant(client as any, tenantId);
+  return EnterpriseWorkflowEngine.runLegacyAdapter(client,tenantId,async()=>{
 
   // 1. Fetch current execution and step details
   const execQuery = `
@@ -163,7 +164,7 @@ export async function transitionWorkflowInstance(
     FROM workflow_step_execution e
     JOIN workflow_instance i ON i.tenant_id = e.tenant_id AND i.id = e.workflow_instance_id
     JOIN workflow_step_definition s ON s.tenant_id = e.tenant_id AND s.id = e.step_definition_id
-    WHERE e.tenant_id = $1 AND e.workflow_instance_id = $2 AND e.id = $3 AND e.status = 'pending'
+    WHERE e.tenant_id = $1 AND e.workflow_instance_id = $2 AND e.id = $3 AND e.status IN ('ready','claimed','running','waiting')
   `;
   const execRes = await client.query(execQuery, [
     tenantId,
@@ -202,11 +203,16 @@ export async function transitionWorkflowInstance(
   const { to_step_definition_id, to_step_name, is_terminal_step } =
     transRes.rows[0];
 
-  // 3. Mark current step as completed (with CAS validation)
+  // 3. Enter running and complete through the canonical lifecycle (with CAS validation)
+  await client.query(
+    `UPDATE workflow_step_execution SET status='running',started_at=COALESCE(started_at,NOW()),version=version+1
+     WHERE tenant_id=$1 AND id=$2 AND status IN ('ready','claimed')`,
+    [tenantId,currentStepExecutionId],
+  );
   const updateRes = await client.query(
     `UPDATE workflow_step_execution
      SET status = 'completed', completed_at = NOW(), notes = COALESCE($1, notes)
-     WHERE tenant_id = $2 AND id = $3 AND status IN ('pending', 'processing')
+     WHERE tenant_id = $2 AND id = $3 AND status IN ('running', 'waiting')
      RETURNING id`,
     [
       notes || `Transitioned via ${outcomeCode}`,
@@ -223,7 +229,7 @@ export async function transitionWorkflowInstance(
   if (!is_terminal_step) {
     const nextStepRes = await client.query(
       `INSERT INTO workflow_step_execution (tenant_id, workflow_instance_id, step_definition_id, status, actor_type, actor_id, notes)
-       VALUES ($1, $2, $3, 'pending', $4, $5, $6)
+       VALUES ($1, $2, $3, 'created', $4, $5, $6)
        RETURNING id`,
       [
         tenantId,
@@ -235,6 +241,10 @@ export async function transitionWorkflowInstance(
       ],
     );
     nextStepExecutionId = nextStepRes.rows[0].id;
+    await client.query(
+      `UPDATE workflow_step_execution SET status='ready',version=version+1 WHERE tenant_id=$1 AND id=$2 AND status='created'`,
+      [tenantId,nextStepExecutionId],
+    );
   } else {
     // Complete the instance since we hit a terminal step
     await client.query(
@@ -262,4 +272,5 @@ export async function transitionWorkflowInstance(
   );
 
   return nextStepExecutionId || null;
+  });
 }

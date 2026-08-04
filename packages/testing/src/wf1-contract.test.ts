@@ -15,7 +15,7 @@ describe('WF-1 architecture contract',()=>{
  test('runtime reuses durable task execution and never executes dynamic code',()=>{expect(engine).toContain('INSERT INTO task_execution');expect(engine).not.toMatch(/eval\(|new Function|child_process/);});
  test('commands enforce idempotency hashes and optimistic versions',()=>{expect(engine).toContain('WF_IDEMPOTENCY_CONFLICT');expect(engine).toContain('WF_VERSION_CONFLICT');expect(engine).toContain('FOR UPDATE');});
  test('AI recommendation acceptance cannot mutate state directly',()=>{expect(engine).toContain('workflow_ai_recommendation');expect(engine).not.toContain('acceptRecommendation');});
- test('new routes use only exact workflow permissions',()=>{expect(routes).not.toContain("'user:write'");expect(routes).not.toMatch(/startsWith\([^)]*workflow/);expect(routes).toContain("'workflow:definition:publish'");});
+ test('new routes use only exact workflow permissions',()=>{expect(routes).not.toMatch(/["']user:write["']/);expect(routes).not.toMatch(/startsWith\([^)]*workflow/);expect(routes).toMatch(/["']workflow:definition:publish["']/);});
  test('all resource reads carry tenant predicates',()=>{expect(routes).not.toMatch(/WHERE id=\$1/);expect(routes).toContain('WHERE i.tenant_id=$1');expect(routes).toContain('WHERE w.tenant_id=$1');});
  test('platform permissions are absent from tenant workflow routes',()=>expect(routes).not.toMatch(/platform\./));
 });
