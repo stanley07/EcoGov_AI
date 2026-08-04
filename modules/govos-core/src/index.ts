@@ -12,6 +12,7 @@ export * from "./context.js";
 export * from "./rbac.js";
 export * from "./iam/tenant-role-catalog.js";
 export * from "./workflow.js";
+export * from "./workflow-engine.js";
 export * from "./task-framework.js";
 export * from "./manifest.js";
 export * from "./platform-authz/platform-permissions.js";

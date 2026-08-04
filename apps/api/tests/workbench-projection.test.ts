@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Pool } from "pg";
 import { Config } from "@govos/configuration";
 import { createApp } from "../src/app.js";
-import {
-  RegistrationReviewTaskExecutor,
-} from "@govos/worker/app";
+import { RegistrationReviewTaskExecutor } from "@govos/worker/app";
 import {
   AgentRegistry,
   PromptRegistry,
@@ -63,6 +61,8 @@ describe("Workbench Projection Consistency Tests", () => {
     const apiApp = createApp(mockConfig, mockPool);
 
     mockQuery.mockImplementation(async (sql: string, params: any[]) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       if (sql.includes("FROM session")) {
         return {
           rows: [
@@ -160,7 +160,9 @@ describe("Workbench Projection Consistency Tests", () => {
 
     expect(res.statusCode).toBe(400);
     const data = JSON.parse(res.body);
-    expect(data.error).toBe("Cannot review using facility ID; must use registration ID");
+    expect(data.error).toBe(
+      "Cannot review using facility ID; must use registration ID",
+    );
   });
 
   // 3. Officer decision CAS validation conflict
@@ -218,6 +220,8 @@ describe("Workbench Projection Consistency Tests", () => {
     const capturedQueries: { text: string; values?: any[] }[] = [];
 
     mockQuery.mockImplementation(async (sql: string, params: any[]) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       if (sql.includes("FROM session")) {
         return {
           rows: [
@@ -256,7 +260,10 @@ describe("Workbench Projection Consistency Tests", () => {
           ],
         };
       }
-      if (sql.includes("to_step_definition_id") || sql.includes("workflow_transition")) {
+      if (
+        sql.includes("to_step_definition_id") ||
+        sql.includes("workflow_transition")
+      ) {
         return {
           rows: [
             {
@@ -311,9 +318,15 @@ describe("Workbench Projection Consistency Tests", () => {
     expect(data.version).toBe(3);
 
     // Verify all updates are executed
-    const hasRegUpdate = capturedQueries.some((q) => q.text.includes("UPDATE facility_registration"));
-    const hasFacUpdate = capturedQueries.some((q) => q.text.includes("UPDATE facility"));
-    const hasReviewUpdate = capturedQueries.some((q) => q.text.includes("UPDATE registration_review"));
+    const hasRegUpdate = capturedQueries.some((q) =>
+      q.text.includes("UPDATE facility_registration"),
+    );
+    const hasFacUpdate = capturedQueries.some((q) =>
+      q.text.includes("UPDATE facility"),
+    );
+    const hasReviewUpdate = capturedQueries.some((q) =>
+      q.text.includes("UPDATE registration_review"),
+    );
 
     expect(hasRegUpdate).toBe(true);
     expect(hasFacUpdate).toBe(true);
@@ -364,12 +377,16 @@ describe("Workbench Projection Consistency Tests", () => {
     });
 
     // Check that we first queried for facility_registration-linked workflow
-    const firstCheckIndex = queryLogs.findIndex((sql) =>
-      sql.includes("FROM workflow_instance") && sql.includes("entity_type = 'facility_registration'")
+    const firstCheckIndex = queryLogs.findIndex(
+      (sql) =>
+        sql.includes("FROM workflow_instance") &&
+        sql.includes("entity_type = 'facility_registration'"),
     );
     // And fallback check for facility-linked workflow occurred afterwards
-    const secondCheckIndex = queryLogs.findIndex((sql) =>
-      sql.includes("FROM workflow_instance") && sql.includes("entity_type = 'facility'")
+    const secondCheckIndex = queryLogs.findIndex(
+      (sql) =>
+        sql.includes("FROM workflow_instance") &&
+        sql.includes("entity_type = 'facility'"),
     );
 
     expect(firstCheckIndex).toBeGreaterThan(-1);
@@ -384,7 +401,12 @@ describe("Workbench Projection Consistency Tests", () => {
 
     // Mock registries with minimal elements
     agentRegistry.register({
-      definition: { name: "ecogov.registration-review", version: "1.2.0", type: "orchestrator", description: "" },
+      definition: {
+        name: "ecogov.registration-review",
+        version: "1.2.0",
+        type: "orchestrator",
+        description: "",
+      },
       systemPrompt: "",
       tools: [],
     } as any);
@@ -413,6 +435,8 @@ describe("Workbench Projection Consistency Tests", () => {
     let regVersionUpdates = 0;
 
     mockQuery.mockImplementation(async (sql: string, _params?: any[]) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       console.log("TEST 6 QUERY:", sql);
 
       if (sql.includes("SELECT id, tenant_id")) {

@@ -18,6 +18,16 @@ export const TENANT_SECURITY_PERMISSIONS = Object.freeze([
   "user:mfa:reset",
 ] as const);
 
+export const TENANT_WORKFLOW_PERMISSIONS = Object.freeze([
+  "workflow:definition:read", "workflow:definition:create", "workflow:definition:update",
+  "workflow:definition:validate", "workflow:definition:publish", "workflow:instance:read",
+  "workflow:instance:start", "workflow:instance:suspend", "workflow:instance:resume",
+  "workflow:instance:cancel", "workflow:instance:repair", "workflow:work-item:read",
+  "workflow:work-item:claim", "workflow:work-item:assign", "workflow:work-item:complete",
+  "workflow:policy:read", "workflow:policy:write", "workflow:policy:publish",
+  "workflow:audit:read", "workflow:operations:read",
+] as const);
+
 export const TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS = Object.freeze(
   [...resolveRolePermissions("super_admin")].filter(
     (permission) => permission !== "user:read" && permission !== "user:write",
@@ -28,6 +38,7 @@ export const TENANT_SUPER_ADMIN_PERMISSION_MANIFEST = Object.freeze([
   ...TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS,
   ...TENANT_IAM_PERMISSIONS,
   ...TENANT_SECURITY_PERMISSIONS,
+  ...TENANT_WORKFLOW_PERMISSIONS,
   "user:write",
 ].sort());
 
@@ -70,15 +81,26 @@ export const TENANT_ROLE_PERMISSION_MANIFESTS: Readonly<Record<string, readonly 
       [...resolveRolePermissions("environmental_consultant")].sort(),
     ),
     finance_officer: Object.freeze([...resolveRolePermissions("finance_officer")].sort()),
+    organization_admin: Object.freeze([
+      "org:read", "org:write", "user:read", "user:invite", "user:membership:update",
+      "invitation:read", "invitation:create", "invitation:resend", "invitation:revoke",
+      "role:read", "user:status:write", "user:session:revoke", "user:mfa:reset",
+    ].sort()),
     citizen: Object.freeze([...resolveRolePermissions("citizen")].sort()),
   });
+
+export const ORGANIZATION_ADMIN_ASSIGNABLE_ROLES = Object.freeze([
+  "inspector",
+  "environmental_consultant",
+  "citizen",
+] as const);
 
 export function assertTenantRoleCatalog(): void {
   const manifest = TENANT_SUPER_ADMIN_PERMISSION_MANIFEST;
   if (TENANT_SUPER_ADMIN_OPERATIONAL_PERMISSIONS.length !== 12)
     throw new Error("Tenant super_admin operational manifest must contain 12 names");
-  if (new Set(manifest).size !== 25)
-    throw new Error("Tenant super_admin manifest must contain 25 unique names");
+  if (new Set(manifest).size !== 45)
+    throw new Error("Tenant super_admin manifest must contain 45 unique names");
   if (manifest.some((name) => name.startsWith("platform.") || name.startsWith("PLATFORM_")))
     throw new Error("Tenant permission catalog contains platform authority");
   if (Object.keys(TENANT_ROLE_PERMISSION_MANIFESTS).includes("subcontractor"))

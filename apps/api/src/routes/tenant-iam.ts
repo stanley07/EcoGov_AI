@@ -27,6 +27,10 @@ function paging(query: Query) {
 
 async function requirePermission(pool: Pool, req: FastifyRequest, reply: FastifyReply, permission: string) {
   const current = actor(req);
+  if (current.roles.includes("organization_admin")) {
+    reply.status(403).send({ error: "Use organization-scoped administration" });
+    return false;
+  }
   const result = await pool.query(
     `SELECT 1 FROM membership m
      JOIN role r ON r.id=m.role_id AND r.tenant_id=m.tenant_id

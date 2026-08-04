@@ -2,8 +2,20 @@ import { Pool } from "pg";
 import { Config } from "@govos/configuration";
 import { logger } from "@govos/observability";
 import { z } from "zod";
-import { AgentRegistry, PromptRegistry, ToolRegistry, OutboxEventDispatcher, DeterministicModelProvider, PolicyEngine, AIExecutionOrchestrator } from "@govos/ai";
-import { TaskRegistry, ScreenSubcontractorApplicationHandler, LicenceIssuanceService } from "@govos/core";
+import {
+  AgentRegistry,
+  PromptRegistry,
+  ToolRegistry,
+  OutboxEventDispatcher,
+  DeterministicModelProvider,
+  PolicyEngine,
+  AIExecutionOrchestrator,
+} from "@govos/ai";
+import {
+  TaskRegistry,
+  ScreenSubcontractorApplicationHandler,
+  LicenceIssuanceService,
+} from "@govos/core";
 import {
   createApp,
   RegistrationReviewTaskExecutor,
@@ -12,6 +24,7 @@ import {
   ComplaintTriageTaskExecutor,
 } from "./app.js";
 import { SendInvitationExecutor } from "./executors/sendInvitationExecutor.js";
+import { WorkflowRuntimeWorker } from "./workflow-runtime.js";
 
 export async function startServer(config: Config, pool: Pool): Promise<void> {
   // Construct registries once in composition root (Correction 14)
@@ -24,7 +37,8 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   promptRegistry.register({
     templateId: "ecogov.facility-review",
     version: "1.0.0",
-    content: "Please review the environmental registration details for the following facility:\n- Business Name: {{businessName}}\n- Category: {{category}}\n- Address: {{address}}\n\nPerform a compliance audit, flag capacity discrepancies, and return structured review parameters.",
+    content:
+      "Please review the environmental registration details for the following facility:\n- Business Name: {{businessName}}\n- Category: {{category}}\n- Address: {{address}}\n\nPerform a compliance audit, flag capacity discrepancies, and return structured review parameters.",
     status: "active",
     requiredVariables: ["businessName", "category", "address"],
     optionalVariables: ["tool_output", "schema_error"],
@@ -35,7 +49,8 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   promptRegistry.register({
     templateId: "ecogov.complaint-triage-template",
     version: "1.0.0",
-    content: "Analyze the environmental complaint:\n- Subject: {{subject}}\n- Description: {{description}}\n- Location: {{location}}\n\nSuggest categories, departments, and potential duplicates.",
+    content:
+      "Analyze the environmental complaint:\n- Subject: {{subject}}\n- Description: {{description}}\n- Location: {{location}}\n\nSuggest categories, departments, and potential duplicates.",
     status: "active",
     requiredVariables: ["subject", "description", "location"],
     optionalVariables: ["tool_output", "schema_error"],
@@ -46,7 +61,8 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   promptRegistry.register({
     templateId: "ecogov.subcontractor-screening-template",
     version: "1.0.0",
-    content: "Verify subcontractor details:\n- Business Name: {{businessName}}\n- Licence Type: {{licenseType}}\n- Experience Years: {{experienceYears}}\n\nDetermine recommendation, score, criteria, and risk flags.",
+    content:
+      "Verify subcontractor details:\n- Business Name: {{businessName}}\n- Licence Type: {{licenseType}}\n- Experience Years: {{experienceYears}}\n\nDetermine recommendation, score, criteria, and risk flags.",
     status: "active",
     requiredVariables: ["businessName", "licenseType", "experienceYears"],
     optionalVariables: ["documents", "tool_output", "schema_error"],
@@ -110,14 +126,17 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
       version: "1.0.0",
       provider: "deterministic",
       model: "simulator",
-      objective: "Verify subcontractor qualifications and assess compliance risk.",
+      objective:
+        "Verify subcontractor qualifications and assess compliance risk.",
       inputSchema: z.unknown(),
       outputSchema: z.unknown(),
     },
     execute: async (input: any) => {
       const vars = input.variables || {};
       const businessName = vars.businessName || "";
-      const isHighRisk = businessName.toLowerCase().includes("fail") || businessName.toLowerCase().includes("high_risk");
+      const isHighRisk =
+        businessName.toLowerCase().includes("fail") ||
+        businessName.toLowerCase().includes("high_risk");
       const recommendation = isHighRisk ? "high_risk" : "recommended";
       const score = isHighRisk ? 30 : 90;
       return {
@@ -126,11 +145,31 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
           recommendation,
           score,
           criteria: [
-            { code: "experience", score, weight: 0.5, explanation: "Proven active operation history" },
-            { code: "credentials", score, weight: 0.5, explanation: "Standard regulatory documentation matches" }
+            {
+              code: "experience",
+              score,
+              weight: 0.5,
+              explanation: "Proven active operation history",
+            },
+            {
+              code: "credentials",
+              score,
+              weight: 0.5,
+              explanation: "Standard regulatory documentation matches",
+            },
           ],
-          riskFlags: isHighRisk ? [{ code: "CRIT-FAIL", severity: "high", explanation: "Discovered critical compliance history flag" }] : [],
-          summary: isHighRisk ? "Critical compliance risk discovered." : "Subcontractor satisfies baseline criteria."
+          riskFlags: isHighRisk
+            ? [
+                {
+                  code: "CRIT-FAIL",
+                  severity: "high",
+                  explanation: "Discovered critical compliance history flag",
+                },
+              ]
+            : [],
+          summary: isHighRisk
+            ? "Critical compliance risk discovered."
+            : "Subcontractor satisfies baseline criteria.",
         },
         usage: { inputTokens: 100, outputTokens: 80, estimatedCost: 0.0001 },
         latencyMs: 15,
@@ -164,8 +203,12 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   );
 
   taskRegistry.register(
-    { name: "govos.notification.invitation.send", version: "1.0.0", inputSchema: z.any() },
-    new SendInvitationExecutor(pool)
+    {
+      name: "govos.notification.invitation.send",
+      version: "1.0.0",
+      inputSchema: z.any(),
+    },
+    new SendInvitationExecutor(pool),
   );
 
   // Validate startup mappings (Correction 14 - fail fast)
@@ -196,24 +239,45 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   const dispatcher = new OutboxEventDispatcher(pool);
   const provider = new DeterministicModelProvider();
   const policyEngine = new PolicyEngine();
-  const orchestrator = new AIExecutionOrchestrator(pool, provider, policyEngine);
+  const orchestrator = new AIExecutionOrchestrator(
+    pool,
+    provider,
+    policyEngine,
+  );
   const screeningHandler = new ScreenSubcontractorApplicationHandler(
     pool,
     orchestrator,
     agentRegistry,
-    promptRegistry
+    promptRegistry,
   );
 
   dispatcher.setDispatchCallback(async (event: any) => {
     if (event.event_type === "subcontractor_application.submitted") {
       await screeningHandler.handleScreening(event.payload, event.id);
-    } else if (event.event_type === "subcontractor_application.payment_confirmed") {
-      const { tenantId, applicationId, invoiceId, paymentId, applicationVersion } = event.payload;
+    } else if (
+      event.event_type === "subcontractor_application.payment_confirmed"
+    ) {
+      const {
+        tenantId,
+        applicationId,
+        invoiceId,
+        paymentId,
+        applicationVersion,
+      } = event.payload;
       const issuanceService = new LicenceIssuanceService(pool);
-      await issuanceService.issueLicence(tenantId, applicationId, invoiceId, paymentId, event.id, applicationVersion);
+      await issuanceService.issueLicence(
+        tenantId,
+        applicationId,
+        invoiceId,
+        paymentId,
+        event.id,
+        applicationVersion,
+      );
     }
   });
   dispatcher.start();
+  const workflowRuntime = new WorkflowRuntimeWorker(pool);
+  workflowRuntime.start();
 
   try {
     await app.listen({
@@ -242,6 +306,7 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
 
     try {
       dispatcher.stop();
+      await workflowRuntime.stop();
       await app.close();
       logger.info("Worker HTTP listeners closed");
 

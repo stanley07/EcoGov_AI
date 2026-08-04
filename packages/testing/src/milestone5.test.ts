@@ -140,13 +140,19 @@ describe("Milestone 5 - EcoGov Complaint Intake & AI Triage", () => {
   it("escalates immediately to officer review step if emergency keyword matched", async () => {
     // Mock database transaction calls
     mockQuery.mockImplementation(async (sql: string, _params?: any[]) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       if (sql.includes("SELECT id, reference_number")) {
         return { rows: [] }; // No duplicate
       }
       if (sql.includes("INSERT INTO complaint")) {
         return { rows: [{ id: "comp-emergency-123" }] };
       }
-      if (sql.includes("SELECT v.id as version_id, s.id as step_def_id, s.step_name")) {
+      if (
+        sql.includes(
+          "SELECT v.id as version_id, s.id as step_def_id, s.step_name",
+        )
+      ) {
         return {
           rows: [
             {
@@ -160,7 +166,9 @@ describe("Milestone 5 - EcoGov Complaint Intake & AI Triage", () => {
       if (sql.includes("INSERT INTO workflow_instance")) {
         return { rows: [{ id: "wf-inst-1" }] };
       }
-      if (sql.includes("SELECT e.step_definition_id, s.step_name, i.version_id")) {
+      if (
+        sql.includes("SELECT e.step_definition_id, s.step_name, i.version_id")
+      ) {
         return {
           rows: [
             {
@@ -232,6 +240,8 @@ describe("Milestone 5 - EcoGov Complaint Intake & AI Triage", () => {
   // 5. Task Triage loop and CAS state completion
   it("executes complaint triage task and saves review in database", async () => {
     mockQuery.mockImplementation(async (sql: string, _params?: any[]) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       if (sql.includes("SELECT id, tenant_id")) {
         return {
           rows: [

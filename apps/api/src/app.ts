@@ -22,6 +22,8 @@ import { agentExecutionsRoutes } from "./routes/agent-executions.js";
 import { marketplaceRoutes } from "./routes/marketplace.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { tenantIamRoutes } from "./routes/tenant-iam.js";
+import { accountSecurityRoutes } from "./routes/account-security.js";
+import { workflowRoutes } from "./routes/workflows.js";
 
 
 // Extend Fastify request interface
@@ -107,6 +109,8 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
       req.url.startsWith("/readyz") ||
       req.url.startsWith("/version") ||
       req.url.startsWith("/auth/login") ||
+      req.url.startsWith("/auth/mfa/challenge") ||
+      req.url.startsWith("/auth/password/reset-required") ||
       req.url.startsWith("/auth/invitations/accept") ||
       req.url.startsWith("/docs") ||
       req.url.startsWith("/internal/diagnostics") ||
@@ -135,8 +139,8 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
       FROM session s
       JOIN tenant t ON t.id = s.tenant_id
       JOIN user_account u ON u.id = s.user_id
-      LEFT JOIN membership m ON m.user_id = u.id
-      LEFT JOIN role r ON r.id = m.role_id
+      LEFT JOIN membership m ON m.user_id=u.id AND m.tenant_id=u.tenant_id AND m.status='active' AND (s.role_id IS NULL OR s.role_id=m.role_id)
+      LEFT JOIN role r ON r.id=m.role_id AND r.tenant_id=m.tenant_id
       WHERE s.token = $1 AND s.expires_at > NOW() AND u.deleted_at IS NULL
       GROUP BY u.id, u.tenant_id, u.status, t.status, t.session_version, s.session_version
     `;
@@ -207,6 +211,8 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
   app.register(marketplaceRoutes, { pool });
   app.register(dashboardRoutes, { pool });
   app.register(tenantIamRoutes, { pool });
+  app.register(accountSecurityRoutes, { pool });
+  app.register(workflowRoutes, { pool });
 
   return app;
 }

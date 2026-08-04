@@ -40,8 +40,8 @@ async function seedWorkflowForTenant(pool: Pool, tenantId: string, userId: strin
 
   const wfVerId = crypto.randomUUID();
   await pool.query(
-    `INSERT INTO workflow_version (id, tenant_id, definition_id, version_number, status, published_at, published_by, configuration_hash)
-     VALUES ($1, $2, $3, 1, 'active', NOW(), $4, 'initial-hash')`,
+    `INSERT INTO workflow_version (id, tenant_id, definition_id, version_number, status, published_at, published_by, configuration_hash, is_default)
+     VALUES ($1, $2, $3, 1, 'published', NOW(), $4, 'initial-hash', TRUE)`,
     [wfVerId, tenantId, wfDefId, userId]
   );
 

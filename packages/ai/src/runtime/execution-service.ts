@@ -1,5 +1,14 @@
 import { Pool, PoolClient } from "pg";
-import { RegistryError, RegistryErrorCode } from "@govos/core";
+
+// Kept local to the AI runtime to avoid an undeclared circular package dependency.
+// The public error codes remain identical to the registry contract.
+enum AIExecutionErrorCode {
+  ACTIVATION_FAILED = "ACTIVATION_FAILED",
+  INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION",
+}
+class AIExecutionError extends Error {
+  constructor(public readonly code:AIExecutionErrorCode,message:string){super(message);this.name="RegistryError";}
+}
 
 export type ExecutionState =
   | "queued"
@@ -89,8 +98,8 @@ export class AIExecutionService {
   public async createExecution(params: CreateExecutionParams): Promise<string> {
     // Validate that if idempotencyKey is set, requestHash and registry IDs are also set
     if (params.idempotencyKey && (!params.requestHash || !params.applicationId || !params.agentDefinitionId || !params.agentVersionId)) {
-      throw new RegistryError(
-        RegistryErrorCode.ACTIVATION_FAILED,
+      throw new AIExecutionError(
+        AIExecutionErrorCode.ACTIVATION_FAILED,
         "Idempotency key requires requestHash and registry IDs"
       );
     }
@@ -160,8 +169,8 @@ export class AIExecutionService {
       // Validate transition rules
       const allowed = ALLOWED_TRANSITIONS[fromState] || [];
       if (!allowed.includes(toState)) {
-        throw new RegistryError(
-          RegistryErrorCode.INVALID_STATE_TRANSITION,
+        throw new AIExecutionError(
+          AIExecutionErrorCode.INVALID_STATE_TRANSITION,
           `Invalid execution state transition from ${fromState} to ${toState}`
         );
       }

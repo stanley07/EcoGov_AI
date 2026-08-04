@@ -1,0 +1,3 @@
+# IAM-1 Gate 5 Rollback Strategy
+
+Create a fresh custom-format database backup before migration 000030. Application rollback is a revert of the Gate 5 commit. Database rollback is owner-controlled: stop Gate 5 writers, retain current backup, remove only Gate 5 invitation organization bindings and organization version/archive fields after verifying no live delegated workflow depends on them, then reconcile migration history through the approved runner process. Never delete organizations, memberships, users, invitations, sessions, roles, permissions, or audit records as an incidental rollback. Existing organization-scoped memberships remain valid under the Gate 4 schema if the application is reverted.

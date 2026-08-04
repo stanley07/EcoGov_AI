@@ -43,7 +43,7 @@ export class ExecutionAttemptService {
   public async completeAttempt(attemptId: string, params: CompleteAttemptParams): Promise<void> {
     await this.pool.query(
       `UPDATE ai_execution_attempt 
-       SET completed_at = $1, input_tokens = $2, output_tokens = $3, actual_cost_microunits = $4,
+       SET completed_at = GREATEST($1, started_at), input_tokens = $2, output_tokens = $3, actual_cost_microunits = $4,
            finish_reason = $5, failure_code = $6, retryable = $7
        WHERE id = $8`,
       [

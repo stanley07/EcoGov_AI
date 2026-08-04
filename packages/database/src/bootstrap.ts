@@ -206,8 +206,8 @@ export async function bootstrap() {
 
     const wfVerId = "00000000-0000-0000-0000-000000000601";
     await client.query(
-      `INSERT INTO workflow_version (id, tenant_id, definition_id, version_number, status, published_at, published_by, configuration_hash)
-       VALUES ($1, $2, $3, 1, 'active', NOW(), $4, 'initial-hash-v1')`,
+      `INSERT INTO workflow_version (id, tenant_id, definition_id, version_number, status, published_at, published_by, configuration_hash, is_default)
+       VALUES ($1, $2, $3, 1, 'published', NOW(), $4, 'initial-hash-v1', TRUE)`,
       [wfVerId, tenantId, wfDefId, adminUserId],
     );
 
@@ -322,8 +322,8 @@ export async function bootstrap() {
 
     const compWfVerId = "00000000-0000-0000-0000-000000000701";
     await client.query(
-      `INSERT INTO workflow_version (id, tenant_id, definition_id, version_number, status, published_at, published_by, configuration_hash)
-       VALUES ($1, $2, $3, 1, 'active', NOW(), $4, 'initial-hash-v1-comp')`,
+      `INSERT INTO workflow_version (id, tenant_id, definition_id, version_number, status, published_at, published_by, configuration_hash, is_default)
+       VALUES ($1, $2, $3, 1, 'published', NOW(), $4, 'initial-hash-v1-comp', TRUE)`,
       [compWfVerId, tenantId, compWfDefId, adminUserId],
     );
 

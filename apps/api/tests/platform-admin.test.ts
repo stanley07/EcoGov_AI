@@ -42,12 +42,13 @@ describe("Platform Admin Console API endpoints", () => {
     mockClient = {
       query: vi.fn().mockImplementation(async (text: string, values?: any[]) => {
         queryCalls.push({ text, values });
-        if (text.includes("SELECT id, tenant_id, email_normalized")) {
+        if (text.includes("SELECT id, tenant_id, organization_id, email_normalized")) {
           return {
             rows: [
               {
                 id: "invite-uuid-123",
                 tenant_id: "tenant-uuid-123",
+                organization_id: null,
                 email_normalized: "admin@govos.ai",
                 invitation_type: "platform_admin_activation",
                 role_id: "role-uuid-123",

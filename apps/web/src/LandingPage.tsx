@@ -3,20 +3,36 @@ import { usePlatformStatistics } from "./public/hooks/usePlatformStatistics.js";
 
 interface LandingPageProps {
   onLogin: (e: React.FormEvent) => Promise<void>;
+  tenantSlug: string;
+  setTenantSlug: (val: string) => void;
   email: string;
   setEmail: (val: string) => void;
   password: string;
   setPassword: (val: string) => void;
   authError: string;
+  mfaRequired: boolean;
+  mfaCode: string;
+  setMfaCode: (val: string) => void;
+  passwordResetRequired: boolean;
+  newPassword: string;
+  setNewPassword: (val: string) => void;
 }
 
 export function LandingPage({
   onLogin,
+  tenantSlug,
+  setTenantSlug,
   email,
   setEmail,
   password,
   setPassword,
   authError,
+  mfaRequired,
+  mfaCode,
+  setMfaCode,
+  passwordResetRequired,
+  newPassword,
+  setNewPassword,
 }: LandingPageProps) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [actionAlert, setActionAlert] = useState<string | null>(null);
@@ -1128,6 +1144,14 @@ export function LandingPage({
                 gap: "15px",
               }}
             >
+              {!mfaRequired && !passwordResetRequired && <div>
+                <label htmlFor="login-workspace" style={{display:"block",marginBottom:"6px",color:"#94a3b8",fontSize:"0.9rem"}}>Workspace slug</label>
+                <input id="login-workspace" value={tenantSlug} onChange={e=>setTenantSlug(e.target.value)} required autoComplete="organization" className="landing-action" style={{width:"100%",minHeight:"44px",padding:"10px",borderRadius:"6px",background:"#0f172a",border:"1px solid #334155",color:"#f1f5f9",boxSizing:"border-box"}} />
+              </div>}
+              {mfaRequired ? <div>
+                <label htmlFor="login-mfa" style={{display:"block",marginBottom:"6px",color:"#94a3b8",fontSize:"0.9rem"}}>Authenticator code</label>
+                <input id="login-mfa" inputMode="numeric" pattern="[0-9]{6}" value={mfaCode} onChange={e=>setMfaCode(e.target.value)} required autoComplete="one-time-code" className="landing-action" style={{width:"100%",minHeight:"44px",padding:"10px",borderRadius:"6px",background:"#0f172a",border:"1px solid #334155",color:"#f1f5f9",boxSizing:"border-box"}} />
+              </div> : <>
               <div>
                 <label
                   htmlFor="login-email"
@@ -1159,6 +1183,8 @@ export function LandingPage({
                   }}
                 />
               </div>
+              {passwordResetRequired&&<div><label htmlFor="login-new-password" style={{display:"block",marginBottom:6,color:"#94a3b8"}}>New password</label><input id="login-new-password" type="password" minLength={12} required autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="landing-action" style={{width:"100%",minHeight:44,padding:10,borderRadius:6,background:"#0f172a",border:"1px solid #334155",color:"#f1f5f9",boxSizing:"border-box"}}/></div>}
+              </>}
 
               <div>
                 <label
@@ -1205,7 +1231,7 @@ export function LandingPage({
                   marginTop: "10px",
                 }}
               >
-                Sign In
+                {passwordResetRequired ? "Set new password" : mfaRequired ? "Verify security code" : "Sign In"}
               </button>
             </form>
 

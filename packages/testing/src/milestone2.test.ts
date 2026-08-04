@@ -87,7 +87,9 @@ describe("Milestone 2 RequestContext Immutability", () => {
 
       // Verify that runtime mutation throws error
       expect(() => {
-        const mutableActive = active as unknown as { identity: { tenantId: string } };
+        const mutableActive = active as unknown as {
+          identity: { tenantId: string };
+        };
         mutableActive.identity.tenantId = "mutated";
       }).toThrow();
     });
@@ -183,6 +185,8 @@ describe("Milestone 2 Workflow Execution Queries", () => {
   test("transitionWorkflowInstance queries transition and inserts new step", async () => {
     const mockClient = {
       query: vi.fn().mockImplementation((queryText: string) => {
+        if (queryText.includes("SELECT 1 FROM tenant"))
+          return { rows: [{ "?column?": 1 }], rowCount: 1 };
         if (queryText.includes("SELECT e.step_definition_id")) {
           return {
             rows: [
