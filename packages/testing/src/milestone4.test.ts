@@ -90,6 +90,8 @@ describe("Milestone 4 - EcoGov Registration Agent integration", () => {
   it("executes the registration review task and advances workflow using CAS", async () => {
     // Mock database responses
     mockQuery.mockImplementation(async (sql: string, _params?: any[]) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       if (sql.includes("SELECT id, tenant_id")) {
         return {
           rows: [
@@ -186,6 +188,8 @@ describe("Milestone 4 - EcoGov Registration Agent integration", () => {
   // 2. Cross-tenant blocks
   it("fails execution if stale worker fails compare-and-set query", async () => {
     mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT 1 FROM tenant"))
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
       if (sql.includes("SELECT id, tenant_id")) {
         return {
           rows: [

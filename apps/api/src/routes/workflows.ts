@@ -30,6 +30,26 @@ async function allowed(
   }
   return true;
 }
+async function definitionCommandAllowed(
+  pool: Pool,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  instanceId: string,
+  commandType: string,
+) {
+  const a = actor(request);
+  const result = await pool.query(
+    `SELECT 1 FROM workflow_instance i JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$3 AND m.status='active' JOIN workflow_definition_permission dp ON dp.tenant_id=i.tenant_id AND dp.definition_id=i.definition_id AND dp.command_type=$4 JOIN permission p ON p.tenant_id=dp.tenant_id AND p.name=dp.permission_name JOIN role_permission rp ON rp.permission_id=p.id AND rp.role_id=m.role_id WHERE i.tenant_id=$1 AND i.id=$2 LIMIT 1`,
+    [a.tenantId, instanceId, a.userId, commandType],
+  );
+  if (!result.rowCount) {
+    reply
+      .status(404)
+      .send({ code: "WF_NOT_FOUND", message: "Workflow instance not found" });
+    return false;
+  }
+  return true;
+}
 const commandKey = (request: FastifyRequest) => {
   const value = key(request);
   if (!value)
@@ -54,13 +74,11 @@ export async function workflowRoutes(
   const engine = new EnterpriseWorkflowEngine(pool);
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof WorkflowError)
-      return reply
-        .status(error.status)
-        .send({
-          code: error.code,
-          message: error.message,
-          correlationId: reply.getHeader("x-correlation-id"),
-        });
+      return reply.status(error.status).send({
+        code: error.code,
+        message: error.message,
+        correlationId: reply.getHeader("x-correlation-id"),
+      });
     request.log.error(error);
     return reply
       .status(500)
@@ -92,6 +110,81 @@ export async function workflowRoutes(
     if (!(await allowed(pool, req, reply, "workflow:definition:read"))) return;
     return engine.getDefinition(actor(req).tenantId, (req.params as any).id);
   });
+  app.get("/v1/workflows/definitions/:id/permissions", async (req, reply) => {
+    if (!(await allowed(pool, req, reply, "workflow:definition:update")))
+      return;
+    const a = actor(req);
+    return (
+      await pool.query(
+        `SELECT command_type,permission_name FROM workflow_definition_permission WHERE tenant_id=$1 AND definition_id=$2 ORDER BY command_type,permission_name`,
+        [a.tenantId, (req.params as any).id],
+      )
+    ).rows;
+  });
+  app.put("/v1/workflows/definitions/:id/permissions", async (req, reply) => {
+    if (!(await allowed(pool, req, reply, "workflow:definition:update")))
+      return;
+    const a = actor(req),
+      body = req.body as any;
+    if (
+      !["start", "read", "cancel", "suspend", "resume", "repair"].includes(
+        body?.commandType,
+      ) ||
+      typeof body?.permissionName !== "string"
+    )
+      throw new WorkflowError(
+        "WF_DEFINITION_PERMISSION_INVALID",
+        422,
+        "Definition permission mapping is invalid",
+      );
+    const result = await pool.query(
+      `INSERT INTO workflow_definition_permission(tenant_id,definition_id,command_type,permission_name) SELECT $1,d.id,$3,p.name FROM workflow_definition d JOIN permission p ON p.tenant_id=d.tenant_id AND p.name=$4 WHERE d.tenant_id=$1 AND d.id=$2 ON CONFLICT(tenant_id,definition_id,command_type,permission_name) DO NOTHING RETURNING command_type,permission_name`,
+      [
+        a.tenantId,
+        (req.params as any).id,
+        body.commandType,
+        body.permissionName,
+      ],
+    );
+    if (!result.rowCount) {
+      const existing = await pool.query(
+        `SELECT command_type,permission_name FROM workflow_definition_permission WHERE tenant_id=$1 AND definition_id=$2 AND command_type=$3 AND permission_name=$4`,
+        [
+          a.tenantId,
+          (req.params as any).id,
+          body.commandType,
+          body.permissionName,
+        ],
+      );
+      if (!existing.rowCount)
+        throw new WorkflowError(
+          "WF_DEFINITION_PERMISSION_INVALID",
+          422,
+          "Definition or permission does not exist",
+        );
+      return existing.rows[0];
+    }
+    return reply.status(201).send(result.rows[0]);
+  });
+  app.delete(
+    "/v1/workflows/definitions/:id/permissions",
+    async (req, reply) => {
+      if (!(await allowed(pool, req, reply, "workflow:definition:update")))
+        return;
+      const a = actor(req),
+        body = req.body as any;
+      await pool.query(
+        `DELETE FROM workflow_definition_permission WHERE tenant_id=$1 AND definition_id=$2 AND command_type=$3 AND permission_name=$4`,
+        [
+          a.tenantId,
+          (req.params as any).id,
+          body?.commandType,
+          body?.permissionName,
+        ],
+      );
+      return reply.status(204).send();
+    },
+  );
   app.post("/v1/workflows/definitions/:id/versions", async (req, reply) => {
     if (!(await allowed(pool, req, reply, "workflow:definition:update")))
       return;
@@ -119,7 +212,13 @@ export async function workflowRoutes(
   app.post("/v1/workflows/versions/:id/validate", async (req, reply) => {
     if (!(await allowed(pool, req, reply, "workflow:definition:validate")))
       return;
-    return engine.validateVersion(actor(req).tenantId, (req.params as any).id);
+    const result = await engine.validateVersion(
+      actor(req).tenantId,
+      (req.params as any).id,
+    );
+    return (result as any).valid === false
+      ? reply.status(422).send(result)
+      : result;
   });
   app.post("/v1/workflows/versions/:id/publish", async (req, reply) => {
     if (!(await allowed(pool, req, reply, "workflow:definition:publish")))
@@ -192,11 +291,12 @@ export async function workflowRoutes(
       q = req.query as any;
     return (
       await pool.query(
-        `SELECT i.id,i.status,i.version,i.entity_type,i.entity_id,i.organization_id,i.started_at,i.updated_at,d.key definition_key,d.name definition_name,v.version_number,s.step_key current_state FROM workflow_instance i JOIN workflow_definition d ON d.tenant_id=i.tenant_id AND d.id=i.definition_id JOIN workflow_version v ON v.tenant_id=i.tenant_id AND v.id=i.version_id LEFT JOIN workflow_step_definition s ON s.tenant_id=i.tenant_id AND s.id=i.current_step_definition_id WHERE i.tenant_id=$1 ORDER BY i.updated_at DESC LIMIT $2 OFFSET $3`,
+        `SELECT DISTINCT i.id,i.status,i.version,i.entity_type,i.entity_id,i.organization_id,i.started_at,i.updated_at,d.key definition_key,d.name definition_name,v.version_number,s.step_key current_state FROM workflow_instance i JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$4 AND m.status='active' JOIN workflow_definition_permission dp ON dp.tenant_id=i.tenant_id AND dp.definition_id=i.definition_id AND dp.command_type='read' JOIN permission p ON p.tenant_id=dp.tenant_id AND p.name=dp.permission_name JOIN role_permission rp ON rp.permission_id=p.id AND rp.role_id=m.role_id JOIN workflow_definition d ON d.tenant_id=i.tenant_id AND d.id=i.definition_id JOIN workflow_version v ON v.tenant_id=i.tenant_id AND v.id=i.version_id LEFT JOIN workflow_step_definition s ON s.tenant_id=i.tenant_id AND s.id=i.current_step_definition_id WHERE i.tenant_id=$1 ORDER BY i.updated_at DESC LIMIT $2 OFFSET $3`,
         [
           a.tenantId,
           Math.min(Number(q.limit ?? 50), 100),
           Math.max(Number(q.offset ?? 0), 0),
+          a.userId,
         ],
       )
     ).rows;
@@ -218,9 +318,10 @@ export async function workflowRoutes(
     if (!(await allowed(pool, req, reply, "workflow:instance:read"))) return;
     const a = actor(req),
       id = (req.params as any).id;
+    if (!(await definitionCommandAllowed(pool, req, reply, id, "read"))) return;
     const result = await pool.query(
-      `SELECT i.*,d.key definition_key,d.name definition_name,v.version_number,s.step_key current_state FROM workflow_instance i JOIN workflow_definition d ON d.tenant_id=i.tenant_id AND d.id=i.definition_id JOIN workflow_version v ON v.tenant_id=i.tenant_id AND v.id=i.version_id LEFT JOIN workflow_step_definition s ON s.tenant_id=i.tenant_id AND s.id=i.current_step_definition_id WHERE i.tenant_id=$1 AND i.id=$2`,
-      [a.tenantId, id],
+      `SELECT i.*,d.key definition_key,d.name definition_name,v.version_number,s.step_key current_state FROM workflow_instance i JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$3 AND m.status='active' JOIN workflow_definition d ON d.tenant_id=i.tenant_id AND d.id=i.definition_id JOIN workflow_version v ON v.tenant_id=i.tenant_id AND v.id=i.version_id LEFT JOIN workflow_step_definition s ON s.tenant_id=i.tenant_id AND s.id=i.current_step_definition_id WHERE i.tenant_id=$1 AND i.id=$2`,
+      [a.tenantId, id, a.userId],
     );
     if (!result.rowCount)
       throw new WorkflowError(
@@ -243,10 +344,20 @@ export async function workflowRoutes(
   app.get("/v1/workflows/instances/:id/events", async (req, reply) => {
     if (!(await allowed(pool, req, reply, "workflow:audit:read"))) return;
     const a = actor(req);
+    if (
+      !(await definitionCommandAllowed(
+        pool,
+        req,
+        reply,
+        (req.params as any).id,
+        "read",
+      ))
+    )
+      return;
     return (
       await pool.query(
-        `SELECT id,sequence_number,event_type,actor_type,actor_id,metadata,created_at FROM workflow_event WHERE tenant_id=$1 AND instance_id=$2 ORDER BY sequence_number LIMIT 200`,
-        [a.tenantId, (req.params as any).id],
+        `SELECT e.id,e.sequence_number,e.event_type,e.actor_type,e.actor_id,e.metadata,e.created_at FROM workflow_event e JOIN workflow_instance i ON i.tenant_id=e.tenant_id AND i.id=e.instance_id JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$3 AND m.status='active' WHERE e.tenant_id=$1 AND e.instance_id=$2 ORDER BY e.sequence_number LIMIT 200`,
+        [a.tenantId, (req.params as any).id, a.userId],
       )
     ).rows;
   });
@@ -262,6 +373,7 @@ export async function workflowRoutes(
         ...body,
         instanceId: (req.params as any).id,
         expectedVersion: expected(req, body),
+        organizationId: body.organizationId,
       },
     );
   });
@@ -287,9 +399,20 @@ export async function workflowRoutes(
               "active",
               ...(action === "cancel" ? ["suspended", "pending"] : []),
             ];
+      if (!(await definitionCommandAllowed(pool, req, reply, id, action)))
+        return;
       const result = await pool.query(
-        `UPDATE workflow_instance SET status=$1,version=version+1,updated_at=NOW(),suspended_at=CASE WHEN $1='suspended' THEN NOW() ELSE suspended_at END,cancelled_at=CASE WHEN $1='cancelled' THEN NOW() ELSE cancelled_at END WHERE tenant_id=$2 AND id=$3 AND version=$4 AND status=ANY($5) RETURNING id,status,version`,
-        [next, a.tenantId, id, expected(req, body), states],
+        `UPDATE workflow_instance i SET status=$1,version=i.version+1,updated_at=NOW(),suspended_at=CASE WHEN $1='suspended' THEN NOW() ELSE i.suspended_at END,cancelled_at=CASE WHEN $1='cancelled' THEN NOW() ELSE i.cancelled_at END FROM organization o,membership m,workflow_definition_permission dp,permission p,role_permission rp WHERE i.tenant_id=$2 AND i.id=$3 AND i.version=$4 AND i.status=ANY($5) AND i.organization_id=$6 AND o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' AND m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$7 AND m.status='active' AND dp.tenant_id=i.tenant_id AND dp.definition_id=i.definition_id AND dp.command_type=$8 AND p.tenant_id=dp.tenant_id AND p.name=dp.permission_name AND rp.permission_id=p.id AND rp.role_id=m.role_id RETURNING i.id,i.status,i.version`,
+        [
+          next,
+          a.tenantId,
+          id,
+          expected(req, body),
+          states,
+          body.organizationId,
+          a.userId,
+          action,
+        ],
       );
       if (!result.rowCount)
         throw new WorkflowError(
@@ -354,7 +477,13 @@ export async function workflowRoutes(
       expected(req, req.body),
     );
   });
-  for (const action of ["accept", "assign", "reassign", "cancel"] as const)
+  for (const action of [
+    "accept",
+    "release",
+    "assign",
+    "reassign",
+    "cancel",
+  ] as const)
     app.post(`/v1/work-items/:id/${action}`, async (req, reply) => {
       const permission =
         action === "reassign"
@@ -363,7 +492,9 @@ export async function workflowRoutes(
             ? "workflow:work-item:cancel"
             : action === "accept"
               ? "workflow:work-item:accept"
-              : "workflow:work-item:assign";
+              : action === "release"
+                ? "workflow:work-item:claim"
+                : "workflow:work-item:assign";
       if (!(await allowed(pool, req, reply, permission))) return;
       const a = actor(req),
         id = (req.params as any).id,
@@ -387,6 +518,14 @@ export async function workflowRoutes(
               "Work item is not claimable",
             );
           status = "in_progress";
+        } else if (action === "release") {
+          if (status !== "claimed" || w.rows[0].claimed_by !== a.userId)
+            throw new WorkflowError(
+              "WF_WORK_ITEM_STALE",
+              409,
+              "Work item is not owned",
+            );
+          status = "open";
         } else if (action === "cancel") {
           if (!["open", "claimed", "in_progress"].includes(status))
             throw new WorkflowError(
@@ -416,7 +555,7 @@ export async function workflowRoutes(
           status = "open";
         }
         const updated = await c.query(
-          `UPDATE workflow_work_item SET status=$1,assignee_user_id=$2,claimed_by=CASE WHEN $1='open' THEN NULL ELSE claimed_by END,version=version+1,updated_at=NOW() WHERE tenant_id=$3 AND id=$4 RETURNING *`,
+          `UPDATE workflow_work_item SET status=$1,assignee_user_id=$2,claimed_by=CASE WHEN $1='open' THEN NULL ELSE claimed_by END,claimed_at=CASE WHEN $1='open' THEN NULL ELSE claimed_at END,version=version+1,updated_at=NOW() WHERE tenant_id=$3 AND id=$4 RETURNING *`,
           [status, userId, a.tenantId, id],
         );
         await c.query(
@@ -485,8 +624,8 @@ export async function workflowRoutes(
     const a = actor(req);
     return (
       await pool.query(
-        `SELECT (SELECT count(*)::int FROM workflow_instance WHERE tenant_id=$1 AND status IN ('running','waiting','active')) active_instances,(SELECT count(*)::int FROM workflow_work_item WHERE tenant_id=$1 AND status='open') open_work_items,(SELECT count(*)::int FROM workflow_timer WHERE tenant_id=$1 AND status='pending' AND due_at<=NOW()) due_timers,(SELECT count(*)::int FROM workflow_sla_clock WHERE tenant_id=$1 AND state='breached') breached_slas`,
-        [a.tenantId],
+        `WITH visible AS (SELECT DISTINCT i.id FROM workflow_instance i JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$2 AND m.status='active' WHERE i.tenant_id=$1) SELECT (SELECT count(*)::int FROM workflow_instance i JOIN visible v ON v.id=i.id WHERE i.status IN ('running','waiting','active')) active_instances,(SELECT count(*)::int FROM workflow_work_item w JOIN visible v ON v.id=w.instance_id WHERE w.status='open') open_work_items,(SELECT count(*)::int FROM workflow_timer t JOIN visible v ON v.id=t.instance_id WHERE t.status='pending' AND t.due_at<=NOW()) due_timers,(SELECT count(*)::int FROM workflow_sla_clock s JOIN visible v ON v.id=s.instance_id WHERE s.state='breached') breached_slas`,
+        [a.tenantId, a.userId],
       )
     ).rows[0];
   });

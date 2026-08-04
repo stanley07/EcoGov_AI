@@ -104,19 +104,18 @@ const pathAllowed = (path: string) => {
 };
 type ConditionNode = {
   operator?: string;
-  op?: string;
   left?: unknown;
   right?: unknown;
-  args?: unknown[];
   conditions?: unknown[];
   condition?: unknown;
   path?: string;
-  variable?: string;
   value?: unknown;
 };
 export function validateTransitionCondition(condition: unknown) {
+  const serialized = JSON.stringify(condition);
   if (
-    Buffer.byteLength(JSON.stringify(condition), "utf8") > CONDITION_MAX_BYTES
+    !serialized ||
+    Buffer.byteLength(serialized, "utf8") > CONDITION_MAX_BYTES
   )
     throw new WorkflowError(
       "WF_CONDITION_TOO_LARGE",
@@ -158,10 +157,95 @@ export function validateTransitionCondition(condition: unknown) {
         "Condition contains an unsupported value",
       );
     const node = value as ConditionNode;
-    const op = node.operator ?? node.op;
-    if (!op) {
-      const path = node.path ?? node.variable;
-      if (!path || !pathAllowed(path))
+    const op = node.operator;
+    if (
+      !op ||
+      ![
+        "literal",
+        "var",
+        "exists",
+        "not",
+        "all",
+        "any",
+        "eq",
+        "neq",
+        "lt",
+        "lte",
+        "gt",
+        "gte",
+        "in",
+      ].includes(op)
+    )
+      throw new WorkflowError(
+        "WF_CONDITION_OPERATOR",
+        422,
+        "Condition operator is not approved",
+      );
+    const allowedKeys: Record<string, string[]> = {
+      literal: ["operator", "value"],
+      var: ["operator", "path"],
+      exists: ["operator", "path"],
+      not: ["operator", "condition"],
+      all: ["operator", "conditions"],
+      any: ["operator", "conditions"],
+      eq: ["operator", "left", "right"],
+      neq: ["operator", "left", "right"],
+      lt: ["operator", "left", "right"],
+      lte: ["operator", "left", "right"],
+      gt: ["operator", "left", "right"],
+      gte: ["operator", "left", "right"],
+      in: ["operator", "left", "right"],
+    };
+    if (Object.keys(node).some((key) => !allowedKeys[op]!.includes(key)))
+      throw new WorkflowError(
+        "WF_CONDITION_SHAPE",
+        422,
+        "Condition node contains unapproved fields",
+      );
+    if (op === "literal") {
+      if (!Object.prototype.hasOwnProperty.call(node, "value"))
+        throw new WorkflowError(
+          "WF_CONDITION_SHAPE",
+          422,
+          "Literal value is required",
+        );
+      if (Array.isArray(node.value)) {
+        if (node.value.length > 50)
+          throw new WorkflowError(
+            "WF_CONDITION_TOO_COMPLEX",
+            422,
+            "Condition list is too large",
+          );
+        const types = new Set(
+          node.value.map((item) => (item === null ? "null" : typeof item)),
+        );
+        if (
+          node.value.some(
+            (item) =>
+              item !== null &&
+              !["string", "number", "boolean"].includes(typeof item),
+          ) ||
+          types.size > 1
+        )
+          throw new WorkflowError(
+            "WF_CONDITION_TYPE",
+            422,
+            "Condition lists must contain compatible scalar values",
+          );
+      } else if (
+        node.value !== null &&
+        !["string", "number", "boolean"].includes(typeof node.value)
+      )
+        throw new WorkflowError(
+          "WF_CONDITION_TYPE",
+          422,
+          "Literal must be an approved scalar or bounded scalar list",
+        );
+      visit(node.value, depth + 1);
+      return;
+    }
+    if (op === "var" || op === "exists") {
+      if (typeof node.path !== "string" || !pathAllowed(node.path))
         throw new WorkflowError(
           "WF_CONDITION_PATH",
           422,
@@ -169,37 +253,29 @@ export function validateTransitionCondition(condition: unknown) {
         );
       return;
     }
-    if (!["equals", "eq", "all", "any", "not"].includes(op))
-      throw new WorkflowError(
-        "WF_CONDITION_OPERATOR",
-        422,
-        "Condition operator is not approved",
-      );
     const children =
       op === "not"
-        ? [
-            Object.prototype.hasOwnProperty.call(node, "condition")
-              ? node.condition
-              : node.args?.[0],
-          ]
+        ? [node.condition]
         : op === "all" || op === "any"
-          ? (node.conditions ?? node.args ?? [])
-          : [
-              Object.prototype.hasOwnProperty.call(node, "left")
-                ? node.left
-                : node.args?.[0],
-              Object.prototype.hasOwnProperty.call(node, "right")
-                ? node.right
-                : node.args?.[1],
-            ];
+          ? node.conditions
+          : [node.left, node.right];
     if (
+      !Array.isArray(children) ||
       children.some((v) => v === undefined) ||
-      (op !== "not" && children.length < 2)
+      (op === "all" || op === "any"
+        ? children.length === 0
+        : children.length !== (op === "not" ? 1 : 2))
     )
       throw new WorkflowError(
         "WF_CONDITION_SHAPE",
         422,
         "Condition operator has invalid operands",
+      );
+    if (op === "in" && Array.isArray(node.right) && node.right.length > 50)
+      throw new WorkflowError(
+        "WF_CONDITION_TOO_COMPLEX",
+        422,
+        "Condition list is too large",
       );
     children.forEach((v) => visit(v, depth + 1));
   };
@@ -229,31 +305,49 @@ export function evaluateTransitionCondition(
     if (value === null || typeof value !== "object" || Array.isArray(value))
       return value;
     const n = value as ConditionNode,
-      op = n.operator ?? n.op;
-    if (!op) return read((n.path ?? n.variable)!);
-    const args = n.args ?? n.conditions ?? [];
-    if (op === "not")
-      return !Boolean(
-        run(
-          Object.prototype.hasOwnProperty.call(n, "condition")
-            ? n.condition
-            : args[0],
-        ),
+      op = n.operator!;
+    if (op === "literal") return n.value;
+    if (op === "var") return read(n.path!);
+    if (op === "exists") return read(n.path!) !== MISSING;
+    if (op === "not") return !Boolean(run(n.condition));
+    if (op === "all") return n.conditions!.every((v) => Boolean(run(v)));
+    if (op === "any") return n.conditions!.some((v) => Boolean(run(v)));
+    const left = run(n.left),
+      right = run(n.right);
+    if (left === MISSING || right === MISSING) return false;
+    if (op === "eq" || op === "neq") {
+      const equal = typeof left === typeof right && Object.is(left, right);
+      return op === "eq" ? equal : !equal;
+    }
+    if (op === "in") {
+      if (!Array.isArray(right)) return false;
+      return right.some(
+        (candidate) =>
+          typeof candidate === typeof left && Object.is(candidate, left),
       );
-    if (op === "all") return args.every((v) => Boolean(run(v)));
-    if (op === "any") return args.some((v) => Boolean(run(v)));
-    const left = run(
-        Object.prototype.hasOwnProperty.call(n, "left") ? n.left : args[0],
-      ),
-      right = run(
-        Object.prototype.hasOwnProperty.call(n, "right") ? n.right : args[1],
-      );
-    return (
-      left !== MISSING &&
-      right !== MISSING &&
-      typeof left === typeof right &&
-      Object.is(left, right)
-    );
+    }
+    if (
+      (typeof left !== "number" && typeof left !== "string") ||
+      typeof left !== typeof right
+    )
+      return false;
+    if (
+      typeof left === "number" &&
+      (!Number.isFinite(left) || !Number.isFinite(right as number))
+    )
+      return false;
+    if (typeof left === "number" && typeof right === "number") {
+      if (op === "lt") return left < right;
+      if (op === "lte") return left <= right;
+      if (op === "gt") return left > right;
+      return left >= right;
+    }
+    const leftText = left as string,
+      rightText = right as string;
+    if (op === "lt") return leftText < rightText;
+    if (op === "lte") return leftText <= rightText;
+    if (op === "gt") return leftText > rightText;
+    return leftText >= rightText;
   };
   return Boolean(run(condition));
 }
@@ -381,6 +475,12 @@ export class EnterpriseWorkflowEngine {
       return result;
     } catch (e) {
       await c.query("ROLLBACK");
+      if ((e as { code?: string }).code === "40001")
+        throw new WorkflowError(
+          "WF_CONCURRENT_COMMAND",
+          409,
+          "Workflow state changed concurrently",
+        );
       throw e;
     } finally {
       c.release();
@@ -478,12 +578,26 @@ export class EnterpriseWorkflowEngine {
           409,
           "Only drafts can be validated",
         );
-      const report = validateEnterpriseWorkflowModel(v.rows[0].configuration);
-      await c.query(
-        `UPDATE workflow_version SET status='validating',validation_report=$1,configuration_hash=$2 WHERE tenant_id=$3 AND id=$4 AND status='draft'`,
-        [JSON.stringify(report), report.hash, tenantId, versionId],
-      );
-      return report;
+      try {
+        const report = validateEnterpriseWorkflowModel(v.rows[0].configuration);
+        await c.query(
+          `UPDATE workflow_version SET status='validating',validation_report=$1,configuration_hash=$2 WHERE tenant_id=$3 AND id=$4 AND status='draft'`,
+          [JSON.stringify(report), report.hash, tenantId, versionId],
+        );
+        return report;
+      } catch (error) {
+        if (!(error instanceof WorkflowError)) throw error;
+        const failure = {
+          valid: false,
+          code: error.code,
+          message: error.message.slice(0, 500),
+        };
+        await c.query(
+          `UPDATE workflow_version SET validation_report=$1,configuration_hash=NULL WHERE tenant_id=$2 AND id=$3 AND status='draft'`,
+          [JSON.stringify(failure), tenantId, versionId],
+        );
+        return failure;
+      }
     });
   }
   async publishVersion(
@@ -578,6 +692,10 @@ export class EnterpriseWorkflowEngine {
         `UPDATE workflow_version SET status='published',is_default=TRUE,published_at=NOW(),published_by=$1 WHERE tenant_id=$2 AND id=$3 AND status='validating'`,
         [actorId, tenantId, versionId],
       );
+      await c.query(
+        `UPDATE workflow_definition SET status='active',updated_at=NOW(),updated_by=$1,version=version+1 WHERE tenant_id=$2 AND id=$3 AND status='draft'`,
+        [actorId, tenantId, row.definition_id],
+      );
       const response = {
         id: versionId,
         status: "published",
@@ -651,9 +769,15 @@ export class EnterpriseWorkflowEngine {
           );
         return existing.rows[0].response_payload;
       }
+      if (!input.organizationId)
+        throw new WorkflowError(
+          "WF_ORGANIZATION_REQUIRED",
+          422,
+          "Organization is required",
+        );
       const v = await c.query(
-        `SELECT v.*,d.id definition_id FROM workflow_definition d JOIN workflow_version v ON v.tenant_id=d.tenant_id AND v.definition_id=d.id WHERE d.tenant_id=$1 AND d.key=$2 AND d.status='active' AND v.status='published' AND v.is_default`,
-        [tenantId, input.definitionKey],
+        `SELECT DISTINCT v.*,d.id definition_id FROM workflow_definition d JOIN workflow_version v ON v.tenant_id=d.tenant_id AND v.definition_id=d.id JOIN workflow_definition_permission dp ON dp.tenant_id=d.tenant_id AND dp.definition_id=d.id AND dp.command_type='start' JOIN permission p ON p.tenant_id=dp.tenant_id AND p.name=dp.permission_name JOIN role_permission rp ON rp.permission_id=p.id JOIN membership m ON m.tenant_id=d.tenant_id AND m.role_id=rp.role_id AND m.user_id=$3 AND m.organization_id=$4 AND m.status='active' JOIN organization o ON o.tenant_id=m.tenant_id AND o.id=m.organization_id AND o.status='active' WHERE d.tenant_id=$1 AND d.key=$2 AND d.status='active' AND v.status='published' AND v.is_default`,
+        [tenantId, input.definitionKey, actorId, input.organizationId],
       );
       if (v.rowCount !== 1)
         throw new WorkflowError(
@@ -735,184 +859,196 @@ export class EnterpriseWorkflowEngine {
       outcomeCode: string;
       expectedVersion: number;
       workItemId?: string;
+      organizationId: string;
     },
   ) {
-    return this.tx(async (c) => {
-      const requestHash = hash(input);
-      const cmd = await this.beginCommand(
+    return this.tx((c) =>
+      this.transitionWithClient(c, tenantId, actorId, idempotencyKey, input),
+    );
+  }
+  private async transitionWithClient(
+    c: PoolClient,
+    tenantId: string,
+    actorId: string,
+    idempotencyKey: string,
+    input: {
+      instanceId: string;
+      outcomeCode: string;
+      expectedVersion: number;
+      workItemId?: string;
+      organizationId: string;
+    },
+    acceptedRecommendationId?: string,
+  ) {
+    const requestHash = hash(input);
+    const cmd = await this.beginCommand(
+      c,
+      tenantId,
+      input.instanceId,
+      idempotencyKey,
+      "transition",
+      requestHash,
+      actorId,
+    );
+    if (cmd.replay) return cmd.response;
+    const i = await c.query(
+      `SELECT i.* FROM workflow_instance i JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$3 AND m.status='active' WHERE i.tenant_id=$1 AND i.id=$2 AND i.organization_id=$4 FOR UPDATE OF i`,
+      [tenantId, input.instanceId, actorId, input.organizationId],
+    );
+    if (!i.rowCount)
+      throw new WorkflowError(
+        "WF_NOT_FOUND",
+        404,
+        "Workflow instance not found",
+      );
+    const instance = i.rows[0];
+    if (instance.version !== input.expectedVersion)
+      throw new WorkflowError(
+        "WF_VERSION_CONFLICT",
+        409,
+        "Instance version conflict",
+      );
+    if (!["running", "waiting", "active"].includes(instance.status))
+      throw new WorkflowError(
+        "WF_INVALID_STATE",
+        409,
+        "Instance is not transitionable",
+      );
+    const current = await c.query(
+      `SELECT e.*,s.step_key FROM workflow_step_execution e JOIN workflow_step_definition s ON s.tenant_id=e.tenant_id AND s.id=e.step_definition_id WHERE e.tenant_id=$1 AND e.workflow_instance_id=$2 AND e.step_definition_id=$3 AND e.status=ANY($4) FOR UPDATE OF e`,
+      [
+        tenantId,
+        input.instanceId,
+        instance.current_step_definition_id,
+        ["created", "ready", "claimed", "running", "waiting"],
+      ],
+    );
+    if (!current.rowCount)
+      throw new WorkflowError("WF_INVALID_STATE", 409, "No active step");
+    if (input.workItemId) {
+      const w = await c.query(
+        `SELECT w.* FROM workflow_work_item w JOIN organization o ON o.tenant_id=w.tenant_id AND o.id=w.organization_id JOIN membership m ON m.tenant_id=w.tenant_id AND m.organization_id=w.organization_id AND m.user_id=$4 AND m.status='active' WHERE w.tenant_id=$1 AND w.id=$2 AND w.step_execution_id=$3 AND o.status='active' FOR UPDATE OF w`,
+        [tenantId, input.workItemId, current.rows[0].id, actorId],
+      );
+      if (
+        !w.rowCount ||
+        !["claimed", "in_progress"].includes(w.rows[0].status) ||
+        w.rows[0].claimed_by !== actorId
+      )
+        throw new WorkflowError(
+          "WF_WORK_ITEM_STALE",
+          409,
+          "Work item is stale or not owned",
+        );
+      await c.query(
+        `UPDATE workflow_work_item SET status='completed',completed_at=NOW(),version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id=$2`,
+        [tenantId, input.workItemId],
+      );
+      await c.query(
+        `INSERT INTO workflow_work_item_history(tenant_id,work_item_id,action,actor_id) VALUES($1,$2,'completed',$3)`,
+        [tenantId, input.workItemId, actorId],
+      );
+    }
+    const choices = await c.query(
+      `SELECT t.*,s.is_terminal_step,s.step_key,s.assignment,s.sla,s.step_type FROM workflow_transition t JOIN workflow_step_definition s ON s.tenant_id=t.tenant_id AND s.id=t.to_step_definition_id WHERE t.tenant_id=$1 AND t.version_id=$2 AND t.from_step_definition_id=$3 AND t.outcome_code=$4 ORDER BY t.priority DESC,t.transition_key`,
+      [
+        tenantId,
+        instance.version_id,
+        instance.current_step_definition_id,
+        input.outcomeCode,
+      ],
+    );
+    const next = choices.rows.find(
+      (t) =>
+        !t.condition_expression ||
+        evaluateTransitionCondition(t.condition_expression, {
+          variables: instance.variables,
+          instance: {
+            entityType: instance.entity_type,
+            organizationId: instance.organization_id,
+            status: instance.status,
+          },
+          step: { output: current.rows[0].output ?? {} },
+        }),
+    );
+    if (!next)
+      throw new WorkflowError(
+        "WF_INVALID_TRANSITION",
+        422,
+        "Transition is not available",
+      );
+    await c.query(
+      `UPDATE workflow_step_execution SET status='running',started_at=COALESCE(started_at,NOW()),version=version+1 WHERE tenant_id=$1 AND id=$2 AND status IN ('ready','claimed')`,
+      [tenantId, current.rows[0].id],
+    );
+    const completed = await c.query(
+      `UPDATE workflow_step_execution SET status='completed',completed_at=NOW(),outcome_code=$1,version=version+1 WHERE tenant_id=$2 AND id=$3 AND status=ANY($4) RETURNING id`,
+      [input.outcomeCode, tenantId, current.rows[0].id, ["running", "waiting"]],
+    );
+    if (!completed.rowCount)
+      throw new WorkflowError(
+        "WF_INVALID_STATE",
+        409,
+        "Step execution is no longer active",
+      );
+    let nextStepExecutionId: null | string = null;
+    const terminal = next.is_terminal_step;
+    if (!terminal) {
+      const s = await c.query(
+        `INSERT INTO workflow_step_execution(tenant_id,workflow_instance_id,step_definition_id,status,actor_type,actor_id) VALUES($1,$2,$3,'created','user',$4) RETURNING id`,
+        [tenantId, input.instanceId, next.to_step_definition_id, actorId],
+      );
+      nextStepExecutionId = s.rows[0].id;
+      await this.initializeStep(
         c,
         tenantId,
         input.instanceId,
-        idempotencyKey,
-        "transition",
-        requestHash,
-        actorId,
+        s.rows[0].id,
+        next,
+        instance.organization_id,
       );
-      if (cmd.replay) return cmd.response;
-      const i = await c.query(
-        `SELECT * FROM workflow_instance WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
-        [tenantId, input.instanceId],
-      );
-      if (!i.rowCount)
-        throw new WorkflowError(
-          "WF_NOT_FOUND",
-          404,
-          "Workflow instance not found",
-        );
-      const instance = i.rows[0];
-      if (instance.version !== input.expectedVersion)
-        throw new WorkflowError(
-          "WF_VERSION_CONFLICT",
-          409,
-          "Instance version conflict",
-        );
-      if (!["running", "waiting", "active"].includes(instance.status))
-        throw new WorkflowError(
-          "WF_INVALID_STATE",
-          409,
-          "Instance is not transitionable",
-        );
-      const current = await c.query(
-        `SELECT e.*,s.step_key FROM workflow_step_execution e JOIN workflow_step_definition s ON s.tenant_id=e.tenant_id AND s.id=e.step_definition_id WHERE e.tenant_id=$1 AND e.workflow_instance_id=$2 AND e.step_definition_id=$3 AND e.status=ANY($4) FOR UPDATE OF e`,
-        [
-          tenantId,
-          input.instanceId,
-          instance.current_step_definition_id,
-          ["created", "ready", "claimed", "running", "waiting"],
-        ],
-      );
-      if (!current.rowCount)
-        throw new WorkflowError("WF_INVALID_STATE", 409, "No active step");
-      if (input.workItemId) {
-        const w = await c.query(
-          `SELECT w.* FROM workflow_work_item w JOIN organization o ON o.tenant_id=w.tenant_id AND o.id=w.organization_id JOIN membership m ON m.tenant_id=w.tenant_id AND m.organization_id=w.organization_id AND m.user_id=$4 AND m.status='active' WHERE w.tenant_id=$1 AND w.id=$2 AND w.step_execution_id=$3 AND o.status='active' FOR UPDATE OF w`,
-          [tenantId, input.workItemId, current.rows[0].id, actorId],
-        );
-        if (
-          !w.rowCount ||
-          !["claimed", "in_progress"].includes(w.rows[0].status) ||
-          w.rows[0].claimed_by !== actorId
-        )
-          throw new WorkflowError(
-            "WF_WORK_ITEM_STALE",
-            409,
-            "Work item is stale or not owned",
-          );
-        await c.query(
-          `UPDATE workflow_work_item SET status='completed',completed_at=NOW(),version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id=$2`,
-          [tenantId, input.workItemId],
-        );
-        await c.query(
-          `INSERT INTO workflow_work_item_history(tenant_id,work_item_id,action,actor_id) VALUES($1,$2,'completed',$3)`,
-          [tenantId, input.workItemId, actorId],
-        );
-      }
-      const choices = await c.query(
-        `SELECT t.*,s.is_terminal_step,s.step_key,s.assignment,s.sla,s.step_type FROM workflow_transition t JOIN workflow_step_definition s ON s.tenant_id=t.tenant_id AND s.id=t.to_step_definition_id WHERE t.tenant_id=$1 AND t.version_id=$2 AND t.from_step_definition_id=$3 AND t.outcome_code=$4 ORDER BY t.priority DESC,t.transition_key`,
-        [
-          tenantId,
-          instance.version_id,
-          instance.current_step_definition_id,
-          input.outcomeCode,
-        ],
-      );
-      const next = choices.rows.find(
-        (t) =>
-          !t.condition_expression ||
-          evaluateTransitionCondition(t.condition_expression, {
-            variables: instance.variables,
-            instance: {
-              entityType: instance.entity_type,
-              organizationId: instance.organization_id,
-              status: instance.status,
-            },
-            step: { output: current.rows[0].output ?? {} },
-          }),
-      );
-      if (!next)
-        throw new WorkflowError(
-          "WF_INVALID_TRANSITION",
-          422,
-          "Transition is not available",
-        );
-      await c.query(
-        `UPDATE workflow_step_execution SET status='running',started_at=COALESCE(started_at,NOW()),version=version+1 WHERE tenant_id=$1 AND id=$2 AND status IN ('ready','claimed')`,
-        [tenantId, current.rows[0].id],
-      );
-      const completed = await c.query(
-        `UPDATE workflow_step_execution SET status='completed',completed_at=NOW(),outcome_code=$1,version=version+1 WHERE tenant_id=$2 AND id=$3 AND status=ANY($4) RETURNING id`,
-        [
-          input.outcomeCode,
-          tenantId,
-          current.rows[0].id,
-          ["running", "waiting"],
-        ],
-      );
-      if (!completed.rowCount)
-        throw new WorkflowError(
-          "WF_INVALID_STATE",
-          409,
-          "Step execution is no longer active",
-        );
-      let nextStepExecutionId: null | string = null;
-      const terminal = next.is_terminal_step;
-      if (!terminal) {
-        const s = await c.query(
-          `INSERT INTO workflow_step_execution(tenant_id,workflow_instance_id,step_definition_id,status,actor_type,actor_id) VALUES($1,$2,$3,'created','user',$4) RETURNING id`,
-          [tenantId, input.instanceId, next.to_step_definition_id, actorId],
-        );
-        nextStepExecutionId = s.rows[0].id;
-        await this.initializeStep(
-          c,
-          tenantId,
-          input.instanceId,
-          s.rows[0].id,
-          next,
-          instance.organization_id,
-        );
-      }
-      await c.query(
-        `UPDATE workflow_instance SET current_step_definition_id=$1,status=$2,version=version+1,updated_at=NOW(),completed_at=CASE WHEN $3 THEN NOW() ELSE completed_at END,terminal_outcome=CASE WHEN $3 THEN $4 ELSE terminal_outcome END WHERE tenant_id=$5 AND id=$6`,
-        [
-          next.to_step_definition_id,
-          terminal ? "completed" : "running",
-          terminal,
-          input.outcomeCode,
-          tenantId,
-          input.instanceId,
-        ],
-      );
-      await c.query(
-        `UPDATE workflow_timer SET status='cancelled' WHERE tenant_id=$1 AND instance_id=$2 AND step_execution_id=$3 AND status IN ('pending','leased')`,
-        [tenantId, input.instanceId, current.rows[0].id],
-      );
-      await c.query(
-        `UPDATE workflow_ai_recommendation SET status='stale',decided_at=NOW() WHERE tenant_id=$1 AND instance_id=$2 AND status='active'`,
-        [tenantId, input.instanceId],
-      );
-      await this.appendEvent(
-        c,
+    }
+    await c.query(
+      `UPDATE workflow_instance SET current_step_definition_id=$1,status=$2,version=version+1,updated_at=NOW(),completed_at=CASE WHEN $3 THEN NOW() ELSE completed_at END,terminal_outcome=CASE WHEN $3 THEN $4 ELSE terminal_outcome END WHERE tenant_id=$5 AND id=$6`,
+      [
+        next.to_step_definition_id,
+        terminal ? "completed" : "running",
+        terminal,
+        input.outcomeCode,
         tenantId,
         input.instanceId,
-        "instance.transitioned",
-        "user",
-        actorId,
-        cmd.id,
-        {
-          from: current.rows[0].step_key,
-          to: next.step_key,
-          outcome: input.outcomeCode,
-        },
-      );
-      const response = {
-        instanceId: input.instanceId,
-        instanceVersion: input.expectedVersion + 1,
-        status: terminal ? "completed" : "running",
-        currentStepExecutionId: nextStepExecutionId,
-      };
-      await this.completeCommand(c, tenantId, cmd.id, response);
-      return response;
-    });
+      ],
+    );
+    await c.query(
+      `UPDATE workflow_timer SET status='cancelled' WHERE tenant_id=$1 AND instance_id=$2 AND step_execution_id=$3 AND status IN ('pending','leased')`,
+      [tenantId, input.instanceId, current.rows[0].id],
+    );
+    await c.query(
+      `UPDATE workflow_ai_recommendation SET status='stale',decided_at=NOW() WHERE tenant_id=$1 AND instance_id=$2 AND status='active' AND ($3::uuid IS NULL OR id<>$3)`,
+      [tenantId, input.instanceId, acceptedRecommendationId ?? null],
+    );
+    await this.appendEvent(
+      c,
+      tenantId,
+      input.instanceId,
+      "instance.transitioned",
+      "user",
+      actorId,
+      cmd.id,
+      {
+        from: current.rows[0].step_key,
+        to: next.step_key,
+        outcome: input.outcomeCode,
+      },
+    );
+    const response = {
+      instanceId: input.instanceId,
+      instanceVersion: input.expectedVersion + 1,
+      status: terminal ? "completed" : "running",
+      currentStepExecutionId: nextStepExecutionId,
+    };
+    await this.completeCommand(c, tenantId, cmd.id, response);
+    return response;
   }
   async claimWorkItem(
     tenantId: string,
@@ -994,18 +1130,37 @@ export class EnterpriseWorkflowEngine {
     idempotencyKey: string,
     reason?: string,
   ) {
-    if (decision === "rejected")
-      return this.tx(async (c) => {
-        const r = await c.query(
-          `UPDATE workflow_ai_recommendation r SET status='rejected',decided_at=NOW() FROM workflow_instance i,membership m,organization o WHERE r.tenant_id=$1 AND r.id=$2 AND r.status='active' AND i.tenant_id=r.tenant_id AND i.id=r.instance_id AND i.organization_id=$3 AND i.version=$4 AND r.instance_version=i.version AND m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$5 AND m.status='active' AND o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' RETURNING r.*,i.id instance_id`,
-          [tenantId, id, organizationId, expectedVersion, actorId],
+    return this.tx(async (c) => {
+      const r = await c.query(
+        `SELECT r.*,i.id instance_id,i.organization_id,i.version current_instance_version FROM workflow_ai_recommendation r JOIN workflow_instance i ON i.tenant_id=r.tenant_id AND i.id=r.instance_id JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$3 AND m.status='active' JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' WHERE r.tenant_id=$1 AND r.id=$2 AND i.organization_id=$4 FOR UPDATE OF r,i`,
+        [tenantId, id, actorId, organizationId],
+      );
+      if (
+        !r.rowCount ||
+        r.rows[0].status !== "active" ||
+        r.rows[0].instance_version !== expectedVersion ||
+        r.rows[0].current_instance_version !== expectedVersion
+      )
+        throw new WorkflowError(
+          "WF_RECOMMENDATION_STALE",
+          409,
+          "Recommendation is stale or inaccessible",
         );
-        if (!r.rowCount)
-          throw new WorkflowError(
-            "WF_RECOMMENDATION_STALE",
-            409,
-            "Recommendation is stale or inaccessible",
-          );
+      if (decision === "rejected") {
+        const command = await this.beginCommand(
+          c,
+          tenantId,
+          r.rows[0].instance_id,
+          idempotencyKey,
+          "recommendation.reject",
+          hash({ id, expectedVersion, reason: reason ?? null }),
+          actorId,
+        );
+        if (command.replay) return command.response;
+        await c.query(
+          `UPDATE workflow_ai_recommendation SET status='rejected',decided_at=NOW() WHERE tenant_id=$1 AND id=$2 AND status='active'`,
+          [tenantId, id],
+        );
         await this.appendEvent(
           c,
           tenantId,
@@ -1013,44 +1168,46 @@ export class EnterpriseWorkflowEngine {
           "recommendation.rejected",
           "user",
           actorId,
-          null,
+          command.id,
           { recommendationId: id, reason: reason ?? null },
         );
-        return { id, status: "rejected" };
-      });
-    const r = await this.pool.query(
-      `SELECT r.recommendation,i.id instance_id,i.organization_id FROM workflow_ai_recommendation r JOIN workflow_instance i ON i.tenant_id=r.tenant_id AND i.id=r.instance_id JOIN membership m ON m.tenant_id=i.tenant_id AND m.organization_id=i.organization_id AND m.user_id=$3 AND m.status='active' JOIN organization o ON o.tenant_id=i.tenant_id AND o.id=i.organization_id AND o.status='active' WHERE r.tenant_id=$1 AND r.id=$2 AND r.status='active' AND i.organization_id=$4 AND r.instance_version=i.version AND i.version=$5`,
-      [tenantId, id, actorId, organizationId, expectedVersion],
-    );
-    if (!r.rowCount) {
-      await this.pool.query(
-        `UPDATE workflow_ai_recommendation SET status='stale',decided_at=NOW() WHERE tenant_id=$1 AND id=$2 AND status='active'`,
+        const response = { id, status: "rejected" as const };
+        await this.completeCommand(c, tenantId, command.id, response);
+        return response;
+      }
+      const rec = r.rows[0].recommendation as any;
+      if (!rec?.outcomeCode)
+        throw new WorkflowError(
+          "WF_RECOMMENDATION_INVALID",
+          422,
+          "Recommendation cannot be executed",
+        );
+      const result = await this.transitionWithClient(
+        c,
+        tenantId,
+        actorId,
+        idempotencyKey,
+        {
+          instanceId: r.rows[0].instance_id,
+          outcomeCode: rec.outcomeCode,
+          expectedVersion,
+          workItemId: rec.workItemId,
+          organizationId,
+        },
+        id,
+      );
+      const accepted = await c.query(
+        `UPDATE workflow_ai_recommendation SET status='accepted',decided_at=NOW() WHERE tenant_id=$1 AND id=$2 AND status='active' RETURNING id`,
         [tenantId, id],
       );
-      throw new WorkflowError(
-        "WF_RECOMMENDATION_STALE",
-        409,
-        "Recommendation is stale or inaccessible",
-      );
-    }
-    const rec = r.rows[0].recommendation as any;
-    if (!rec?.outcomeCode)
-      throw new WorkflowError(
-        "WF_RECOMMENDATION_INVALID",
-        422,
-        "Recommendation cannot be executed",
-      );
-    const result = await this.transition(tenantId, actorId, idempotencyKey, {
-      instanceId: r.rows[0].instance_id,
-      outcomeCode: rec.outcomeCode,
-      expectedVersion,
-      workItemId: rec.workItemId,
+      if (!accepted.rowCount)
+        throw new WorkflowError(
+          "WF_RECOMMENDATION_STALE",
+          409,
+          "Recommendation is stale or inaccessible",
+        );
+      return { id, status: "accepted" as const, result };
     });
-    await this.pool.query(
-      `UPDATE workflow_ai_recommendation SET status='accepted',decided_at=NOW() WHERE tenant_id=$1 AND id=$2 AND status='stale'`,
-      [tenantId, id],
-    );
-    return { id, status: "accepted", result };
   }
   private async initializeStep(
     c: PoolClient,
