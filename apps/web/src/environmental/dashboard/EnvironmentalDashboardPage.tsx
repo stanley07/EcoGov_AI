@@ -1,9 +1,11 @@
+import { useState } from "react";
 import {
   ModuleHeader,
   PrototypeLabel,
   SummaryCards,
 } from "../shared/EnvironmentalUI.js";
 import type { EnvironmentalFacility } from "../shared/types.js";
+import { navigateTo } from "../shared/actions.js";
 
 export function EnvironmentalDashboardPage({
   facilities,
@@ -16,6 +18,7 @@ export function EnvironmentalDashboardPage({
   error: string | null;
   onRetry: () => void;
 }) {
+  const [trendView, setTrendView] = useState("all");
   if (loading)
     return (
       <div className="emis-page" aria-busy="true">
@@ -79,27 +82,51 @@ export function EnvironmentalDashboardPage({
             value: facilities.length,
             tone: "#38bdf8",
             note: "Live facility registry",
+            onClick: () => navigateTo("#/facilities"),
           },
           {
             label: "Active Facilities",
             value: approved,
             tone: "#34d399",
             note: "Approved registry records",
+            onClick: () => navigateTo("#/facilities"),
           },
           {
             label: "Environmental Audits",
             value: 0,
             note: "No production source",
+            onClick: () => navigateTo("#/operations/audits"),
           },
           {
             label: "Inspections",
             value: 0,
             note: "Workflow integration pending",
+            onClick: () => navigateTo("#/operations/inspections"),
           },
-          { label: "Active Permits", value: 0, note: "Prototype module" },
-          { label: "Incidents", value: 0, note: "Complaint mapping pending" },
-          { label: "Waste Sites", value: 0, note: "Prototype module" },
-          { label: "Enforcement Notices", value: 0, note: "Prototype module" },
+          {
+            label: "Active Permits",
+            value: 0,
+            note: "Prototype module",
+            onClick: () => navigateTo("#/operations/permits"),
+          },
+          {
+            label: "Incidents",
+            value: 0,
+            note: "Complaint mapping pending",
+            onClick: () => navigateTo("#/operations/incidents"),
+          },
+          {
+            label: "Waste Sites",
+            value: 0,
+            note: "Prototype module",
+            onClick: () => navigateTo("#/waste"),
+          },
+          {
+            label: "Enforcement Notices",
+            value: 0,
+            note: "Prototype module",
+            onClick: () => navigateTo("#/operations/enforcement"),
+          },
         ]}
       />
       {!facilities.length && (
@@ -109,6 +136,13 @@ export function EnvironmentalDashboardPage({
             Register a facility to populate live facility totals. Other modules
             remain honest zero states.
           </p>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() => navigateTo("#/facilities/register")}
+          >
+            Register facility
+          </button>
         </div>
       )}
       <section>
@@ -137,10 +171,24 @@ export function EnvironmentalDashboardPage({
       <section>
         <div className="emis-section-title">
           <h2>Operational trends</h2>
-          <PrototypeLabel>Prototype charts · zero baselines</PrototypeLabel>
+          <div className="emis-actions">
+            <select
+              aria-label="Chart display filter"
+              value={trendView}
+              onChange={(event) => setTrendView(event.target.value)}
+            >
+              <option value="all">All trends</option>
+              <option value="registry">Registry only</option>
+              <option value="prototype">Prototype only</option>
+            </select>
+            <PrototypeLabel>Prototype charts · zero baselines</PrototypeLabel>
+          </div>
         </div>
         <div className="emis-chart-grid">
-          <figure className="emis-card emis-chart">
+          <figure
+            className="emis-card emis-chart"
+            hidden={trendView === "prototype"}
+          >
             <figcaption>Facilities by LGA</figcaption>
             <svg
               viewBox="0 0 300 160"
@@ -177,7 +225,11 @@ export function EnvironmentalDashboardPage({
             ["Compliance Trend", "0,0 50,0 100,0 150,0 200,0 250,0"],
             ["Incident Trend", "0,0 50,0 100,0 150,0 200,0 250,0"],
           ].map(([title, points]) => (
-            <figure className="emis-card emis-chart" key={title}>
+            <figure
+              className="emis-card emis-chart"
+              key={title}
+              hidden={trendView === "registry"}
+            >
               <figcaption>{title}</figcaption>
               <svg
                 viewBox="0 0 300 160"
@@ -205,7 +257,11 @@ export function EnvironmentalDashboardPage({
             ["Waste Categories", "#f59e0b"],
             ["Permit Distribution", "#818cf8"],
           ].map(([title, color]) => (
-            <figure className="emis-card emis-chart" key={title}>
+            <figure
+              className="emis-card emis-chart"
+              key={title}
+              hidden={trendView === "registry"}
+            >
               <figcaption>{title}</figcaption>
               <svg
                 viewBox="0 0 300 160"
@@ -240,15 +296,27 @@ export function EnvironmentalDashboardPage({
       <section className="emis-card">
         <div className="emis-section-title">
           <h2>Recent activity</h2>
-          <span className="emis-muted">Live facility registrations</span>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() => navigateTo("#/facilities")}
+          >
+            View all
+          </button>
         </div>
         {facilities.length ? (
           <ul className="emis-activity">
             {facilities.slice(0, 5).map((facility) => (
               <li key={facility.id}>
-                <strong>{facility.businessName}</strong> registered{" "}
-                {new Date(facility.createdAt).toLocaleDateString()} ·{" "}
-                {facility.registrationStatus.replace(/_/g, " ")}
+                <button
+                  type="button"
+                  className="emis-activity-action"
+                  onClick={() => navigateTo(`#/facilities/${facility.id}`)}
+                >
+                  <strong>{facility.businessName}</strong> registered{" "}
+                  {new Date(facility.createdAt).toLocaleDateString()} ·{" "}
+                  {facility.registrationStatus.replace(/_/g, " ")}
+                </button>
               </li>
             ))}
           </ul>

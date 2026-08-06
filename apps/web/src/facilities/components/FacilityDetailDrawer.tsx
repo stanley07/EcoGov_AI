@@ -1,5 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
 import { TimelineEvent } from "../../workbench/types/workbench.js";
+import {
+  downloadCsv,
+  navigateTo,
+  openPrintPreview,
+} from "../../environmental/shared/actions.js";
 
 interface FacilityDetailDrawerProps {
   facilityId: string;
@@ -57,6 +62,7 @@ export function FacilityDetailDrawer({
   const [detail, setDetail] = useState<FacilityDetail | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState("");
   const [activeProfileTab, setActiveProfileTab] =
     useState<(typeof FACILITY_PROFILE_TABS)[number]>("Overview");
 
@@ -249,6 +255,77 @@ export function FacilityDetailDrawer({
                 </button>
               ))}
             </div>
+            <div className="emis-actions" aria-label="Facility profile actions">
+              <button
+                type="button"
+                className="emis-action"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(detail.id);
+                    setActionMessage("Facility ID copied.");
+                  } catch {
+                    setActionMessage(
+                      "Copy unavailable. Select the displayed facility ID instead.",
+                    );
+                  }
+                }}
+              >
+                Copy facility ID
+              </button>
+              <button
+                type="button"
+                className="emis-action"
+                disabled={
+                  !Number.isFinite(detail.latitude) ||
+                  !Number.isFinite(detail.longitude)
+                }
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      `${detail.latitude}, ${detail.longitude}`,
+                    );
+                    setActionMessage("Coordinates copied.");
+                  } catch {
+                    setActionMessage(
+                      "Copy unavailable. Select the displayed coordinates instead.",
+                    );
+                  }
+                }}
+              >
+                Copy coordinates
+              </button>
+              <button
+                type="button"
+                className="emis-action"
+                onClick={() => navigateTo("#/gis")}
+              >
+                Open map
+              </button>
+              <button
+                type="button"
+                className="emis-action"
+                onClick={() =>
+                  downloadCsv(
+                    `facility-${detail.id}.csv`,
+                    `Field,Value\r\nFacility ID,"${detail.id}"\r\nName,"${detail.businessName.replace(/"/g, '""')}"\r\nStatus,"${detail.registrationStatus}"\r\nRisk,"${detail.riskRating}"`,
+                  )
+                }
+              >
+                Download CSV
+              </button>
+              <button
+                type="button"
+                className="emis-action"
+                onClick={openPrintPreview}
+              >
+                Print profile
+              </button>
+            </div>
+            {actionMessage && (
+              <p role="status" style={{ color: "#7dd3fc" }}>
+                {actionMessage}
+              </p>
+            )}
             {activeProfileTab !== "Overview" && (
               <div style={sectionStyle} role="tabpanel">
                 <h3 style={{ marginTop: 0 }}>{activeProfileTab}</h3>

@@ -11,6 +11,18 @@ import { prototypeAudits, prototypeIncidents } from "./shared/prototypeData.js";
 import { navigationGroups } from "../layout/navigationConfig.js";
 import { matchRoute } from "../layout/routes.js";
 import { FACILITY_PROFILE_TABS } from "../facilities/components/FacilityDetailDrawer.js";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { PRODUCTION_PHASE_REASON } from "./shared/actions.js";
+import { DisabledPrototypeAction } from "./shared/EnvironmentalUI.js";
+import { EnvironmentalAuditsPage } from "./audits/EnvironmentalAuditsPage.js";
+import { InspectionsPage } from "./inspections/InspectionsPage.js";
+import { IncidentsPage } from "./incidents/IncidentsPage.js";
+import { PermitsPage } from "./permits/PermitsPage.js";
+import { EnforcementNoticesPage } from "./enforcement/EnforcementNoticesPage.js";
+import { EnvironmentalMapsPage } from "./maps/EnvironmentalMapsPage.js";
+import { ReportsPage } from "./reports/ReportsPage.js";
 
 const facility = {
   id: "facility-1",
@@ -130,5 +142,81 @@ describe("EMIS2 environmental operations prototype", () => {
         "History",
       ]),
     );
+  });
+
+  test("renders actionable audit, inspection, incident, permit and enforcement pages", () => {
+    const pages = [
+      EnvironmentalAuditsPage,
+      InspectionsPage,
+      IncidentsPage,
+      PermitsPage,
+      EnforcementNoticesPage,
+    ];
+    const html = pages
+      .map((Page) => renderToStaticMarkup(React.createElement(Page)))
+      .join(" ");
+    expect(html).toContain("Create Audit");
+    expect(html).toContain("Next step");
+    expect(html).toContain("Register Incident");
+    expect(
+      readFileSync(
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          "permits",
+          "PermitsPage.tsx",
+        ),
+        "utf8",
+      ),
+    ).toContain("Print preview");
+    expect(html).toContain("Preview create flow");
+  });
+
+  test("renders GIS reset and report preview/export controls", () => {
+    const map = renderToStaticMarkup(
+      React.createElement(EnvironmentalMapsPage, { facilities: [facility] }),
+    );
+    const reports = renderToStaticMarkup(
+      React.createElement(ReportsPage, { facilities: [facility] }),
+    );
+    expect(map).toContain("Reset map filters");
+    expect(reports).toContain("Export CSV");
+    expect(reports).toContain("Print preview");
+  });
+
+  test("uses the exact explanation for unsupported actions", () => {
+    expect(PRODUCTION_PHASE_REASON).toBe(
+      "Available in production implementation phase.",
+    );
+    const disabled = renderToStaticMarkup(
+      React.createElement(DisabledPrototypeAction, null, "Save"),
+    );
+    expect(disabled).toContain(PRODUCTION_PHASE_REASON);
+    expect(disabled).toContain("disabled");
+  });
+
+  test("guards environmental buttons against inert rendering", () => {
+    const root = dirname(fileURLToPath(import.meta.url));
+    const files: string[] = [];
+    const collect = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) collect(path);
+        else if (entry.name.endsWith(".tsx")) files.push(path);
+      }
+    };
+    collect(root);
+    const inert: string[] = [];
+    for (const path of files) {
+      const source = readFileSync(path, "utf8");
+      for (const match of source.matchAll(/<button\b[\s\S]*?>/g)) {
+        const tag = match[0];
+        if (
+          !/\bonClick=|\bdisabled(?:=|\s|>)/.test(tag) &&
+          !/type=["']submit["']/.test(tag)
+        )
+          inert.push(`${path}:${tag}`);
+      }
+    }
+    expect(inert).toEqual([]);
   });
 });

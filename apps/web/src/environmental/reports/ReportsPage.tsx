@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
-import { ModuleHeader, PrototypeLabel } from "../shared/EnvironmentalUI.js";
+import {
+  DisabledPrototypeAction,
+  FilterBar,
+  ModuleHeader,
+  PrototypeLabel,
+} from "../shared/EnvironmentalUI.js";
 import type { EnvironmentalFacility } from "../shared/types.js";
+import { downloadCsv, openPrintPreview } from "../shared/actions.js";
 
 export const facilitiesToCsv = (facilities: EnvironmentalFacility[]) =>
   [
@@ -34,16 +40,10 @@ export function ReportsPage({
   facilities: EnvironmentalFacility[];
 }) {
   const [type, setType] = useState("Monthly Reports");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const csv = useMemo(() => facilitiesToCsv(facilities), [facilities]);
-  const exportCsv = () => {
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "ecogov-facility-report.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportCsv = () => downloadCsv("ecogov-facility-report.csv", csv);
   return (
     <div className="emis-page">
       <ModuleHeader
@@ -51,6 +51,35 @@ export function ReportsPage({
         description="Report preview and CSV export backed by the current tenant facility response."
         prototype={false}
       />
+      <FilterBar>
+        <label>
+          From{" "}
+          <input
+            type="date"
+            value={from}
+            onChange={(event) => setFrom(event.target.value)}
+          />
+        </label>
+        <label>
+          To{" "}
+          <input
+            type="date"
+            value={to}
+            onChange={(event) => setTo(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="emis-action"
+          onClick={() => {
+            setFrom("");
+            setTo("");
+            setType("Monthly Reports");
+          }}
+        >
+          Clear filters
+        </button>
+      </FilterBar>
       <div className="emis-module-grid">
         {reportTypes.map((report) => (
           <button
@@ -110,12 +139,15 @@ export function ReportsPage({
           >
             Export CSV
           </button>
-          <button className="emis-action" disabled title="Production phase">
-            PDF · production phase
+          <button
+            type="button"
+            className="emis-action"
+            onClick={openPrintPreview}
+          >
+            Print preview
           </button>
-          <button className="emis-action" disabled title="Production phase">
-            Excel · production phase
-          </button>
+          <DisabledPrototypeAction>PDF export</DisabledPrototypeAction>
+          <DisabledPrototypeAction>Excel export</DisabledPrototypeAction>
         </div>
       </section>
     </div>
