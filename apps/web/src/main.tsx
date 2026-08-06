@@ -17,6 +17,18 @@ import { UserSecurityPage } from "./iam/UserSecurityPage.js";
 import { OrganizationsPage } from "./iam/OrganizationsPage.js";
 import { OrganizationDetailPage } from "./iam/OrganizationDetailPage.js";
 import { WorkflowWorkspace } from "./workflows/WorkflowWorkspace.js";
+import { EnvironmentalDashboardPage } from "./environmental/dashboard/EnvironmentalDashboardPage.js";
+import { EnvironmentalAuditsPage } from "./environmental/audits/EnvironmentalAuditsPage.js";
+import { InspectionsPage } from "./environmental/inspections/InspectionsPage.js";
+import { IncidentsPage } from "./environmental/incidents/IncidentsPage.js";
+import { PermitsPage } from "./environmental/permits/PermitsPage.js";
+import { CompliancePage } from "./environmental/compliance/CompliancePage.js";
+import { EnforcementNoticesPage } from "./environmental/enforcement/EnforcementNoticesPage.js";
+import { WasteManagementPage } from "./environmental/waste/WasteManagementPage.js";
+import { EnvironmentalMonitoringPage } from "./environmental/monitoring/EnvironmentalMonitoringPage.js";
+import { EnvironmentalMapsPage } from "./environmental/maps/EnvironmentalMapsPage.js";
+import { ReportsPage } from "./environmental/reports/ReportsPage.js";
+import "./environmental/environmental.css";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -42,8 +54,6 @@ import {
   canViewPlatformAdmin,
   resolvePlatformPermissionClaims,
 } from "./layout/shellAuthorization.js";
-
-
 
 // API target endpoint base URL
 const API_BASE_URL = "http://localhost:8080";
@@ -89,9 +99,6 @@ interface Organization {
   createdAt: string;
 }
 
-
-
-
 export const resolveSessionPermissions = (roles: string[]): string[] => {
   const permissions = new Set<string>();
   for (const permission of resolvePlatformPermissionClaims(roles)) {
@@ -99,14 +106,28 @@ export const resolveSessionPermissions = (roles: string[]): string[] => {
   }
   if (roles.includes("super_admin")) {
     for (const permission of [
-      "workflow:definition:read", "workflow:definition:create", "workflow:definition:update",
-      "workflow:definition:validate", "workflow:definition:publish", "workflow:instance:read",
-      "workflow:instance:start", "workflow:instance:suspend", "workflow:instance:resume",
-      "workflow:instance:cancel", "workflow:instance:repair", "workflow:work-item:read",
-      "workflow:work-item:claim", "workflow:work-item:assign", "workflow:work-item:complete",
-      "workflow:policy:read", "workflow:policy:write", "workflow:policy:publish",
-      "workflow:audit:read", "workflow:operations:read",
-    ]) permissions.add(permission);
+      "workflow:definition:read",
+      "workflow:definition:create",
+      "workflow:definition:update",
+      "workflow:definition:validate",
+      "workflow:definition:publish",
+      "workflow:instance:read",
+      "workflow:instance:start",
+      "workflow:instance:suspend",
+      "workflow:instance:resume",
+      "workflow:instance:cancel",
+      "workflow:instance:repair",
+      "workflow:work-item:read",
+      "workflow:work-item:claim",
+      "workflow:work-item:assign",
+      "workflow:work-item:complete",
+      "workflow:policy:read",
+      "workflow:policy:write",
+      "workflow:policy:publish",
+      "workflow:audit:read",
+      "workflow:operations:read",
+    ])
+      permissions.add(permission);
     permissions.add("org:read");
     permissions.add("org:write");
     permissions.add("user:read");
@@ -193,7 +214,20 @@ export const resolveSessionPermissions = (roles: string[]): string[] => {
     permissions.add("facility:read");
   }
   if (roles.includes("organization_admin")) {
-    for (const permission of ["org:read", "org:write", "user:read", "user:invite", "user:membership:update", "invitation:read", "invitation:create", "role:read", "user:status:write", "user:session:revoke", "user:mfa:reset"]) permissions.add(permission);
+    for (const permission of [
+      "org:read",
+      "org:write",
+      "user:read",
+      "user:invite",
+      "user:membership:update",
+      "invitation:read",
+      "invitation:create",
+      "role:read",
+      "user:status:write",
+      "user:session:revoke",
+      "user:mfa:reset",
+    ])
+      permissions.add(permission);
   }
   return Array.from(permissions);
 };
@@ -320,11 +354,14 @@ function App() {
     const savedUser = localStorage.getItem("govos_user")
       ? JSON.parse(localStorage.getItem("govos_user")!)
       : null;
-    return savedUser && canViewPlatformAdmin(savedUser.tenantId, savedUser.roles)
+    return savedUser &&
+      canViewPlatformAdmin(savedUser.tenantId, savedUser.roles)
       ? "platform"
       : "dashboard";
   });
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [facilitiesLoading, setFacilitiesLoading] = useState(false);
+  const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
   const [dbKpis, setDbKpis] = useState<{
     subcontractors: number;
     licences: number;
@@ -354,22 +391,29 @@ function App() {
   const [offset, setOffset] = useState(0);
   const limit = 10;
 
-  const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(
+    null,
+  );
 
   // Auth Form State
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tenantSlug, setTenantSlug] = useState(() => new URLSearchParams(window.location.search).get("tenant") || import.meta.env.VITE_PUBLIC_TENANT_SLUG || "anambra-state-ministry-of-environment");
+  const [tenantSlug, setTenantSlug] = useState(
+    () =>
+      new URLSearchParams(window.location.search).get("tenant") ||
+      import.meta.env.VITE_PUBLIC_TENANT_SLUG ||
+      "anambra-state-ministry-of-environment",
+  );
   const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
-  const [passwordResetToken, setPasswordResetToken] = useState<string | null>(null);
+  const [passwordResetToken, setPasswordResetToken] = useState<string | null>(
+    null,
+  );
   const [newPassword, setNewPassword] = useState("");
   const [authError, setAuthError] = useState("");
 
   // Registration Form State
   const [wizardSuccess, setWizardSuccess] = useState("");
-
-
 
   // Fetch metrics
   const [apiReadyState, setApiReadyState] = useState<any>(null);
@@ -378,11 +422,25 @@ function App() {
     e.preventDefault();
     setAuthError("");
     try {
-      const authPath=passwordResetToken?"/auth/password/reset-required":mfaChallenge?"/auth/mfa/challenge":"/auth/login";
+      const authPath = passwordResetToken
+        ? "/auth/password/reset-required"
+        : mfaChallenge
+          ? "/auth/mfa/challenge"
+          : "/auth/login";
       const res = await fetch(`${API_BASE_URL}${authPath}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(passwordResetToken?{resetToken:passwordResetToken,currentPassword:password,newPassword}:mfaChallenge ? { challengeToken:mfaChallenge,code:mfaCode } : { tenantSlug,email,password }),
+        body: JSON.stringify(
+          passwordResetToken
+            ? {
+                resetToken: passwordResetToken,
+                currentPassword: password,
+                newPassword,
+              }
+            : mfaChallenge
+              ? { challengeToken: mfaChallenge, code: mfaCode }
+              : { tenantSlug, email, password },
+        ),
       });
 
       if (!res.ok) {
@@ -391,16 +449,35 @@ function App() {
       }
 
       const data = await res.json();
-      if(data.passwordResetRequired){setPasswordResetToken(data.resetToken);return;}
-      if(passwordResetToken){setPasswordResetToken(null);setPassword("");setNewPassword("");setAuthError("Password changed. Sign in with your new password.");return;}
-      if(data.mfaRequired){setMfaChallenge(data.challengeToken);setPassword("");return;}
+      if (data.passwordResetRequired) {
+        setPasswordResetToken(data.resetToken);
+        return;
+      }
+      if (passwordResetToken) {
+        setPasswordResetToken(null);
+        setPassword("");
+        setNewPassword("");
+        setAuthError("Password changed. Sign in with your new password.");
+        return;
+      }
+      if (data.mfaRequired) {
+        setMfaChallenge(data.challengeToken);
+        setPassword("");
+        return;
+      }
       localStorage.setItem("govos_token", data.token);
       localStorage.setItem("govos_user", JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      setMfaChallenge(null);setMfaCode("");
+      setMfaChallenge(null);
+      setMfaCode("");
       const returnTo = consumeStoredRedirect();
-      navigateHash(returnTo || defaultHash(canViewPlatformAdmin(data.user.tenantId, data.user.roles)));
+      navigateHash(
+        returnTo ||
+          defaultHash(
+            canViewPlatformAdmin(data.user.tenantId, data.user.roles),
+          ),
+      );
     } catch (err: any) {
       setAuthError(err.message);
     }
@@ -416,7 +493,9 @@ function App() {
 
   const userPermissions = user ? resolveSessionPermissions(user.roles) : [];
   const canAccessPlatformAdmin = Boolean(
-    user && user.tenantId === SYSTEM_TENANT_ID && userPermissions.includes(PLATFORM_ADMIN_NAV_PERMISSION),
+    user &&
+    user.tenantId === SYSTEM_TENANT_ID &&
+    userPermissions.includes(PLATFORM_ADMIN_NAV_PERMISSION),
   );
 
   useEffect(() => {
@@ -430,10 +509,20 @@ function App() {
       });
       const currentMatch = matchRoute(window.location.hash);
       if (!currentMatch || currentMatch.hash !== resolution.hash) {
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${resolution.hash}`);
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${window.location.search}${resolution.hash}`,
+        );
       }
-      setActiveTab((current) => current === resolution.tab ? current : resolution.tab);
-      setSelectedFacilityId((current) => current === (resolution.facilityId || null) ? current : (resolution.facilityId || null));
+      setActiveTab((current) =>
+        current === resolution.tab ? current : resolution.tab,
+      );
+      setSelectedFacilityId((current) =>
+        current === (resolution.facilityId || null)
+          ? current
+          : resolution.facilityId || null,
+      );
     };
     synchronizeRoute();
     window.addEventListener("hashchange", synchronizeRoute);
@@ -443,6 +532,8 @@ function App() {
   // Fetch facilities and organizations
   const fetchData = async () => {
     if (!token) return;
+    setFacilitiesLoading(true);
+    setFacilitiesError(null);
     try {
       const queryParams = new URLSearchParams();
       queryParams.append("limit", limit.toString());
@@ -453,13 +544,18 @@ function App() {
       if (filterRisk) queryParams.append("riskRating", filterRisk);
       if (searchTerm) queryParams.append("search", searchTerm);
 
-      const facRes = await fetch(`${API_BASE_URL}/facilities?${queryParams.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const facRes = await fetch(
+        `${API_BASE_URL}/facilities?${queryParams.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (facRes.ok) {
         const data = await facRes.json();
         setFacilities(data.items);
         setPagination(data.pagination);
+      } else {
+        throw new Error("The tenant facility registry could not be loaded.");
       }
 
       const orgRes = await fetch(`${API_BASE_URL}/organizations`, {
@@ -485,6 +581,13 @@ function App() {
       }
     } catch (err) {
       console.error("Failed to load backend metrics", err);
+      setFacilitiesError(
+        err instanceof Error
+          ? err.message
+          : "Environmental data could not be loaded.",
+      );
+    } finally {
+      setFacilitiesLoading(false);
     }
   };
 
@@ -501,7 +604,14 @@ function App() {
   if (!token || !user) {
     if (activeTab === "subcontractor-apply") return <ApplicationWizard />;
     if (activeTab === "subcontractor-status") return <ApplicationStatusPage />;
-    if (activeTab === "verify-licence") return <ModuleAvailabilityPanel title="Public Licence Verification" reason="module_not_enabled" description="The public licence checker route is reserved and will be activated when the verification interface is deployed." />;
+    if (activeTab === "verify-licence")
+      return (
+        <ModuleAvailabilityPanel
+          title="Public Licence Verification"
+          reason="module_not_enabled"
+          description="The public licence checker route is reserved and will be activated when the verification interface is deployed."
+        />
+      );
     return (
       <LandingPage
         onLogin={handleLogin}
@@ -543,17 +653,24 @@ function App() {
               isVisible = false;
             }
             if (item.requiredPermission) {
-              isVisible = isVisible && userPermissions.includes(item.requiredPermission);
+              isVisible =
+                isVisible && userPermissions.includes(item.requiredPermission);
             }
             if (item.requiredRoles) {
-              isVisible = isVisible && item.requiredRoles.some((r) => user.roles.includes(r));
+              isVisible =
+                isVisible &&
+                item.requiredRoles.some((r) => user.roles.includes(r));
             }
             if (item.excludeRoles) {
-              isVisible = isVisible && !item.excludeRoles.some((r) => user.roles.includes(r));
+              isVisible =
+                isVisible &&
+                !item.excludeRoles.some((r) => user.roles.includes(r));
             }
           }
 
-          const isActive = activeTab === item.targetTab || (item.targetTab === "registry" && activeTab === "wizard");
+          const isActive =
+            activeTab === item.id ||
+            (item.targetTab === "registry" && activeTab === "wizard");
 
           return {
             id: item.id,
@@ -597,24 +714,20 @@ function App() {
   );
 
   return (
-    <AppShell
-      sidebar={sidebar}
-      topBar={topBar}
-      pageTitle={pageTitle}
-    >
+    <AppShell sidebar={sidebar} topBar={topBar} pageTitle={pageTitle}>
       <PageContainer>
         {/* Tab Subcontractor: Apply */}
-        {activeTab === "subcontractor-apply" && (
-          <ApplicationWizard />
-        )}
+        {activeTab === "subcontractor-apply" && <ApplicationWizard />}
 
         {/* Tab Subcontractor: Status */}
-        {activeTab === "subcontractor-status" && (
-          <ApplicationStatusPage />
-        )}
+        {activeTab === "subcontractor-status" && <ApplicationStatusPage />}
 
         {activeTab === "verify-licence" && (
-          <ModuleAvailabilityPanel title="Public Licence Verification" reason="module_not_enabled" description="The public licence checker route is reserved and will be activated when the verification interface is deployed." />
+          <ModuleAvailabilityPanel
+            title="Public Licence Verification"
+            reason="module_not_enabled"
+            description="The public licence checker route is reserved and will be activated when the verification interface is deployed."
+          />
         )}
 
         {activeTab === "users-access" && (
@@ -622,11 +735,22 @@ function App() {
         )}
 
         {activeTab === "organizations" && (
-          <OrganizationsPage apiBaseUrl={API_BASE_URL} token={token} canCreate={user.roles.includes("super_admin")} />
+          <OrganizationsPage
+            apiBaseUrl={API_BASE_URL}
+            token={token}
+            canCreate={user.roles.includes("super_admin")}
+          />
         )}
 
         {activeTab === "organization-detail" && (
-          <OrganizationDetailPage apiBaseUrl={API_BASE_URL} token={token} organizationId={matchRoute(window.location.hash)?.params.organizationId || ""} isTenantAdmin={user.roles.includes("super_admin")} />
+          <OrganizationDetailPage
+            apiBaseUrl={API_BASE_URL}
+            token={token}
+            organizationId={
+              matchRoute(window.location.hash)?.params.organizationId || ""
+            }
+            isTenantAdmin={user.roles.includes("super_admin")}
+          />
         )}
 
         {/* Tab 0: Platform Admin Console */}
@@ -640,8 +764,17 @@ function App() {
           />
         )}
 
-        {/* Tab 1: Dashboard */}
         {activeTab === "dashboard" && (
+          <EnvironmentalDashboardPage
+            facilities={facilities}
+            loading={facilitiesLoading}
+            error={facilitiesError}
+            onRetry={fetchData}
+          />
+        )}
+
+        {/* Legacy dashboard retained temporarily for composition safety; not rendered. */}
+        {activeTab === "dashboard" && dbKpis && false && (
           <div>
             <header style={{ marginBottom: "30px" }}>
               <h1 style={{ margin: 0, fontSize: "2rem" }}>
@@ -745,13 +878,26 @@ function App() {
                 marginBottom: "30px",
               }}
             >
-              <h2 style={{ margin: "0 0 10px", color: "#38bdf8", fontSize: "1.4rem" }}>
+              <h2
+                style={{
+                  margin: "0 0 10px",
+                  color: "#38bdf8",
+                  fontSize: "1.4rem",
+                }}
+              >
                 💼 Operational & Commercial Intelligence
               </h2>
-              <p style={{ color: "#94a3b8", margin: "0 0 20px 0", fontSize: "0.9rem" }}>
-                Real-time government KPIs and revenue collections captured in the secure ledger.
+              <p
+                style={{
+                  color: "#94a3b8",
+                  margin: "0 0 20px 0",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Real-time government KPIs and revenue collections captured in
+                the secure ledger.
               </p>
-              
+
               <div
                 style={{
                   display: "grid",
@@ -760,50 +906,215 @@ function App() {
                 }}
               >
                 {/* KPI 1: Subcontractors */}
-                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Subcontractors</div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#f8fafc", marginTop: "5px" }}>
-                    {dbKpis ? `${dbKpis.subcontractors} Active` : (sessionStorage.getItem("demo_subcontractor_id") ? "1 Active" : "0")}
+                <div
+                  style={{
+                    background: "#1e293b",
+                    padding: "15px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#94a3b8",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Subcontractors
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "bold",
+                      color: "#f8fafc",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {dbKpis
+                      ? `${dbKpis!.subcontractors} Active`
+                      : sessionStorage.getItem("demo_subcontractor_id")
+                        ? "1 Active"
+                        : "0"}
                   </div>
                 </div>
 
                 {/* KPI 2: Licences Issued */}
-                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Licences Issued</div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#10b981", marginTop: "5px" }}>
-                    {dbKpis ? `${dbKpis.licences} Issued` : (sessionStorage.getItem("demo_licence_code") ? "1 Issued" : "0")}
+                <div
+                  style={{
+                    background: "#1e293b",
+                    padding: "15px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#94a3b8",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Licences Issued
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "bold",
+                      color: "#10b981",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {dbKpis
+                      ? `${dbKpis!.licences} Issued`
+                      : sessionStorage.getItem("demo_licence_code")
+                        ? "1 Issued"
+                        : "0"}
                   </div>
                 </div>
 
                 {/* KPI 3: Revenue Collected */}
-                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Ledger Revenue</div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#fbbf24", marginTop: "5px" }}>
-                    {dbKpis ? `$${dbKpis.revenueUsd.toFixed(2)}` : (sessionStorage.getItem("demo_licence_code") ? "$500.00" : "$0.00")}
+                <div
+                  style={{
+                    background: "#1e293b",
+                    padding: "15px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#94a3b8",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Ledger Revenue
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "bold",
+                      color: "#fbbf24",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {dbKpis
+                      ? `$${dbKpis!.revenueUsd.toFixed(2)}`
+                      : sessionStorage.getItem("demo_licence_code")
+                        ? "$500.00"
+                        : "$0.00"}
                   </div>
                 </div>
 
                 {/* KPI 4: Territory Coverage */}
-                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Territories LGA</div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#818cf8", marginTop: "5px" }}>
-                    {dbKpis && dbKpis.territories > 0 ? `${dbKpis.territories} LGA(s)` : (sessionStorage.getItem("demo_licence_code") ? "Awka South" : "None")}
+                <div
+                  style={{
+                    background: "#1e293b",
+                    padding: "15px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#94a3b8",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Territories LGA
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "bold",
+                      color: "#818cf8",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {dbKpis && dbKpis!.territories > 0
+                      ? `${dbKpis!.territories} LGA(s)`
+                      : sessionStorage.getItem("demo_licence_code")
+                        ? "Awka South"
+                        : "None"}
                   </div>
                 </div>
 
                 {/* KPI 5: Facilities Enrolled */}
-                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Facilities Acquired</div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#38bdf8", marginTop: "5px" }}>
-                    {dbKpis ? `${dbKpis.facilities} Enrolled` : (sessionStorage.getItem("demo_facility_id") ? "1 Enrolled" : "0")}
+                <div
+                  style={{
+                    background: "#1e293b",
+                    padding: "15px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#94a3b8",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Facilities Acquired
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "bold",
+                      color: "#38bdf8",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {dbKpis
+                      ? `${dbKpis!.facilities} Enrolled`
+                      : sessionStorage.getItem("demo_facility_id")
+                        ? "1 Enrolled"
+                        : "0"}
                   </div>
                 </div>
 
                 {/* KPI 6: AI Audits & Decided */}
-                <div style={{ background: "#1e293b", padding: "15px", borderRadius: "8px", border: "1px solid #334155" }}>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Review Actions</div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: "bold", color: "#34d399", marginTop: "5px" }}>
-                    {dbKpis ? `${dbKpis.approvedFacilities} Approved / ${dbKpis.activeReviews} In-Review` : (sessionStorage.getItem("demo_officer_approved") === "true" ? "1 Approved" : sessionStorage.getItem("demo_facility_id") ? "AI Triaged" : "0")}
+                <div
+                  style={{
+                    background: "#1e293b",
+                    padding: "15px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#94a3b8",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Review Actions
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "bold",
+                      color: "#34d399",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {dbKpis
+                      ? `${dbKpis!.approvedFacilities} Approved / ${dbKpis!.activeReviews} In-Review`
+                      : sessionStorage.getItem("demo_officer_approved") ===
+                          "true"
+                        ? "1 Approved"
+                        : sessionStorage.getItem("demo_facility_id")
+                          ? "AI Triaged"
+                          : "0"}
                   </div>
                 </div>
               </div>
@@ -853,7 +1164,14 @@ function App() {
 
         {activeTab === "registry" && (
           <div>
-            <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <header
+              style={{
+                marginBottom: "30px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <div>
                 <h1 style={{ margin: 0, fontSize: "2rem" }}>
                   📋 Facility Registry
@@ -877,8 +1195,12 @@ function App() {
                     fontSize: "0.95rem",
                     transition: "background 0.2s",
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.background = "#0284c7")}
-                  onMouseOut={(e) => (e.currentTarget.style.background = "#0ea5e9")}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.background = "#0284c7")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.background = "#0ea5e9")
+                  }
                 >
                   + Register Facility
                 </button>
@@ -892,7 +1214,7 @@ function App() {
                 gap: "16px",
                 marginBottom: "20px",
                 flexWrap: "wrap",
-                alignItems: "center"
+                alignItems: "center",
               }}
             >
               <div style={{ flexGrow: 1, minWidth: "200px" }}>
@@ -1055,49 +1377,104 @@ function App() {
                   >
                     <th
                       onClick={() => {
-                        const nextOrder = sortBy === "businessName" && sortOrder === "desc" ? "asc" : "desc";
+                        const nextOrder =
+                          sortBy === "businessName" && sortOrder === "desc"
+                            ? "asc"
+                            : "desc";
                         setSortBy("businessName");
                         setSortOrder(nextOrder);
                         setOffset(0);
                       }}
-                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "businessName" ? "#38bdf8" : "#f1f5f9" }}
+                      style={{
+                        padding: "15px 20px",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        color:
+                          sortBy === "businessName" ? "#38bdf8" : "#f1f5f9",
+                      }}
                     >
-                      Business Name {sortBy === "businessName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                      Business Name{" "}
+                      {sortBy === "businessName"
+                        ? sortOrder === "asc"
+                          ? "▲"
+                          : "▼"
+                        : ""}
                     </th>
                     <th
                       onClick={() => {
-                        const nextOrder = sortBy === "category" && sortOrder === "desc" ? "asc" : "desc";
+                        const nextOrder =
+                          sortBy === "category" && sortOrder === "desc"
+                            ? "asc"
+                            : "desc";
                         setSortBy("category");
                         setSortOrder(nextOrder);
                         setOffset(0);
                       }}
-                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "category" ? "#38bdf8" : "#f1f5f9" }}
+                      style={{
+                        padding: "15px 20px",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        color: sortBy === "category" ? "#38bdf8" : "#f1f5f9",
+                      }}
                     >
-                      Category {sortBy === "category" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                      Category{" "}
+                      {sortBy === "category"
+                        ? sortOrder === "asc"
+                          ? "▲"
+                          : "▼"
+                        : ""}
                     </th>
                     <th
                       onClick={() => {
-                        const nextOrder = sortBy === "riskRating" && sortOrder === "desc" ? "asc" : "desc";
+                        const nextOrder =
+                          sortBy === "riskRating" && sortOrder === "desc"
+                            ? "asc"
+                            : "desc";
                         setSortBy("riskRating");
                         setSortOrder(nextOrder);
                         setOffset(0);
                       }}
-                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "riskRating" ? "#38bdf8" : "#f1f5f9" }}
+                      style={{
+                        padding: "15px 20px",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        color: sortBy === "riskRating" ? "#38bdf8" : "#f1f5f9",
+                      }}
                     >
-                      Risk Rating {sortBy === "riskRating" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                      Risk Rating{" "}
+                      {sortBy === "riskRating"
+                        ? sortOrder === "asc"
+                          ? "▲"
+                          : "▼"
+                        : ""}
                     </th>
                     <th
                       onClick={() => {
-                        const nextOrder = sortBy === "status" && sortOrder === "desc" ? "asc" : "desc";
+                        const nextOrder =
+                          sortBy === "status" && sortOrder === "desc"
+                            ? "asc"
+                            : "desc";
                         setSortBy("status");
                         setSortOrder(nextOrder);
                         setOffset(0);
                       }}
-                      style={{ padding: "15px 20px", cursor: "pointer", userSelect: "none", color: sortBy === "status" ? "#38bdf8" : "#f1f5f9" }}
+                      style={{
+                        padding: "15px 20px",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        color: sortBy === "status" ? "#38bdf8" : "#f1f5f9",
+                      }}
                     >
-                      Status {sortBy === "status" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                      Status{" "}
+                      {sortBy === "status"
+                        ? sortOrder === "asc"
+                          ? "▲"
+                          : "▼"
+                        : ""}
                     </th>
-                    <th style={{ padding: "15px 20px", color: "#f1f5f9" }}>Address</th>
+                    <th style={{ padding: "15px 20px", color: "#f1f5f9" }}>
+                      Address
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1108,51 +1485,94 @@ function App() {
                       style={{
                         borderBottom: "1px solid #334155",
                         cursor: "pointer",
-                        transition: "background 0.2s"
+                        transition: "background 0.2s",
                       }}
-                      onMouseOver={(e) => (e.currentTarget.style.background = "#24334d")}
-                      onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                      onMouseOver={(e) =>
+                        (e.currentTarget.style.background = "#24334d")
+                      }
+                      onMouseOut={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
                     >
-                      <td className="facility-cell" style={{ padding: "15px 20px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                          {/* Thumbnail Image Container */}
-                          <div style={{
-                            width: "56px",
-                            height: "56px",
-                            borderRadius: "8px",
-                            overflow: "hidden",
-                            border: "1px solid #334155",
-                            background: "#0f172a",
-                            flexShrink: 0,
+                      <td
+                        className="facility-cell"
+                        style={{ padding: "15px 20px" }}
+                      >
+                        <div
+                          style={{
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center"
-                          }}>
+                            gap: "12px",
+                          }}
+                        >
+                          {/* Thumbnail Image Container */}
+                          <div
+                            style={{
+                              width: "56px",
+                              height: "56px",
+                              borderRadius: "8px",
+                              overflow: "hidden",
+                              border: "1px solid #334155",
+                              background: "#0f172a",
+                              flexShrink: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
                             <img
-                              src={fac.primaryImageUrl || "/facility_placeholder.jpg"}
+                              src={
+                                fac.primaryImageUrl ||
+                                "/facility_placeholder.jpg"
+                              }
                               alt={`${fac.businessName} facility`}
                               loading="lazy"
                               width={56}
                               height={56}
-                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
                               onError={(e) => {
-                                const target = e.currentTarget as HTMLImageElement;
-                                if (target.src !== "/facility_placeholder.jpg") {
+                                const target =
+                                  e.currentTarget as HTMLImageElement;
+                                if (
+                                  target.src !== "/facility_placeholder.jpg"
+                                ) {
                                   target.src = "/facility_placeholder.jpg";
                                 }
                               }}
                             />
                           </div>
                           <div>
-                            <div style={{ fontWeight: "bold", color: "#f8fafc" }}>{fac.businessName}</div>
-                            <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: "2px" }}>
+                            <div
+                              style={{ fontWeight: "bold", color: "#f8fafc" }}
+                            >
+                              {fac.businessName}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#94a3b8",
+                                marginTop: "2px",
+                              }}
+                            >
                               {fac.category.replace("_", " ").toUpperCase()}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="category-cell" style={{ padding: "15px 20px" }}>{fac.category.replace("_", " ").toUpperCase()}</td>
-                      <td className="risk-cell" style={{ padding: "15px 20px" }}>
+                      <td
+                        className="category-cell"
+                        style={{ padding: "15px 20px" }}
+                      >
+                        {fac.category.replace("_", " ").toUpperCase()}
+                      </td>
+                      <td
+                        className="risk-cell"
+                        style={{ padding: "15px 20px" }}
+                      >
                         <span
                           style={{
                             padding: "4px 8px",
@@ -1176,7 +1596,10 @@ function App() {
                           {fac.riskRating.toUpperCase()}
                         </span>
                       </td>
-                      <td className="status-cell" style={{ padding: "15px 20px" }}>
+                      <td
+                        className="status-cell"
+                        style={{ padding: "15px 20px" }}
+                      >
                         <span
                           style={{
                             padding: "4px 8px",
@@ -1200,7 +1623,10 @@ function App() {
                           {fac.registrationStatus.toUpperCase()}
                         </span>
                       </td>
-                      <td className="address-cell" style={{ padding: "15px 20px", color: "#94a3b8" }}>
+                      <td
+                        className="address-cell"
+                        style={{ padding: "15px 20px", color: "#94a3b8" }}
+                      >
                         {fac.address}
                       </td>
                     </tr>
@@ -1215,14 +1641,19 @@ function App() {
                           color: "#64748b",
                         }}
                       >
-                        <div style={{ fontSize: "2rem", marginBottom: "12px" }}>📂</div>
-                        <h4 style={{ margin: "0 0 8px", color: "#cbd5e1" }}>No Regulated Facilities Found</h4>
+                        <div style={{ fontSize: "2rem", marginBottom: "12px" }}>
+                          📂
+                        </div>
+                        <h4 style={{ margin: "0 0 8px", color: "#cbd5e1" }}>
+                          No Regulated Facilities Found
+                        </h4>
                         <p style={{ margin: "0 0 20px", fontSize: "0.85rem" }}>
-                          No facilities matched your current filters or tenant workspace view.
+                          No facilities matched your current filters or tenant
+                          workspace view.
                         </p>
-                        {(user?.roles.includes("super_admin") ||
-                          user?.roles.includes("facility:register") ||
-                          user?.roles.includes("facility:write")) ? (
+                        {user?.roles.includes("super_admin") ||
+                        user?.roles.includes("facility:register") ||
+                        user?.roles.includes("facility:write") ? (
                           <button
                             onClick={() => setIsRegisterModalOpen(true)}
                             style={{
@@ -1232,14 +1663,16 @@ function App() {
                               border: "none",
                               borderRadius: "6px",
                               fontWeight: "bold",
-                              cursor: "pointer"
+                              cursor: "pointer",
                             }}
                           >
                             + Register Your First Facility
                           </button>
                         ) : (
                           <div style={{ fontSize: "0.8rem", color: "#ef4444" }}>
-                            🔒 You do not have permissions to register facilities. Please contact your system administrator.
+                            🔒 You do not have permissions to register
+                            facilities. Please contact your system
+                            administrator.
                           </div>
                         )}
                       </td>
@@ -1263,21 +1696,29 @@ function App() {
                   }}
                 >
                   <div>
-                    Showing {offset + 1} to {Math.min(offset + facilities.length, pagination.total)} of {pagination.total} facilities
+                    Showing {offset + 1} to{" "}
+                    {Math.min(offset + facilities.length, pagination.total)} of{" "}
+                    {pagination.total} facilities
                   </div>
                   <div style={{ display: "flex", gap: "10px" }}>
                     <button
                       disabled={!pagination.hasPrevious}
-                      onClick={() => setOffset((prev) => Math.max(0, prev - limit))}
+                      onClick={() =>
+                        setOffset((prev) => Math.max(0, prev - limit))
+                      }
                       style={{
                         padding: "6px 12px",
-                        background: pagination.hasPrevious ? "#334155" : "#1e293b",
+                        background: pagination.hasPrevious
+                          ? "#334155"
+                          : "#1e293b",
                         border: "1px solid #475569",
                         borderRadius: "4px",
                         color: pagination.hasPrevious ? "#f8fafc" : "#64748b",
                         fontSize: "0.8rem",
                         fontWeight: "bold",
-                        cursor: pagination.hasPrevious ? "pointer" : "not-allowed"
+                        cursor: pagination.hasPrevious
+                          ? "pointer"
+                          : "not-allowed",
                       }}
                     >
                       Previous
@@ -1293,7 +1734,7 @@ function App() {
                         color: pagination.hasNext ? "#f8fafc" : "#64748b",
                         fontSize: "0.8rem",
                         fontWeight: "bold",
-                        cursor: pagination.hasNext ? "pointer" : "not-allowed"
+                        cursor: pagination.hasNext ? "pointer" : "not-allowed",
                       }}
                     >
                       Next
@@ -1337,7 +1778,9 @@ function App() {
               token={token || ""}
               isOfficer={isOfficer}
               onSuccess={(ref) => {
-                setWizardSuccess(`Facility successfully registered! Reference: ${ref}`);
+                setWizardSuccess(
+                  `Facility successfully registered! Reference: ${ref}`,
+                );
                 fetchData();
                 navigateLegacyTab("registry");
               }}
@@ -1352,9 +1795,7 @@ function App() {
         )}
 
         {/* Tab 4: Queue (Officer Review Console) */}
-        {activeTab === "queue" && (
-          <OfficerWorkbench token={token} />
-        )}
+        {activeTab === "queue" && <OfficerWorkbench token={token} />}
 
         {/* Tab 5: Settings */}
         {activeTab === "settings" && (
@@ -1423,7 +1864,9 @@ function App() {
               </h3>
               <div style={{ display: "grid", gap: "10px" }}>
                 <p style={{ margin: 0 }}>
-                  <strong>Government Unit:</strong> {user?.organizationName || "Anambra State Ministry of Environment Headquarters"}
+                  <strong>Government Unit:</strong>{" "}
+                  {user?.organizationName ||
+                    "Anambra State Ministry of Environment Headquarters"}
                 </p>
                 <p style={{ margin: 0 }}>
                   <strong>Department:</strong> Environmental Enforcement &
@@ -1434,83 +1877,59 @@ function App() {
           </div>
         )}
 
-        {activeTab === "account-security" && <AccountSecurityPage apiBaseUrl={API_BASE_URL} token={token} />}
-        {activeTab === "user-security" && <UserSecurityPage apiBaseUrl={API_BASE_URL} token={token} userId={matchRoute(window.location.hash)?.params.userId || ""} />}
-        {activeTab === "workflow-definitions" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="definitions" />}
-        {activeTab === "workflow-instances" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="instances" />}
-        {activeTab === "workflow-tasks" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="tasks" />}
-        {activeTab === "workflow-operations" && <WorkflowWorkspace apiBaseUrl={API_BASE_URL} token={token || ""} mode="operations" />}
-
-        {/* Planned roadmap modules */}
-        {activeTab === "audits" && (
-          <ModuleAvailabilityPanel
-            title="Environmental Audits"
-            reason="module_not_implemented"
+        {activeTab === "account-security" && (
+          <AccountSecurityPage apiBaseUrl={API_BASE_URL} token={token} />
+        )}
+        {activeTab === "user-security" && (
+          <UserSecurityPage
+            apiBaseUrl={API_BASE_URL}
+            token={token}
+            userId={matchRoute(window.location.hash)?.params.userId || ""}
+          />
+        )}
+        {activeTab === "workflow-definitions" && (
+          <WorkflowWorkspace
+            apiBaseUrl={API_BASE_URL}
+            token={token || ""}
+            mode="definitions"
+          />
+        )}
+        {activeTab === "workflow-instances" && (
+          <WorkflowWorkspace
+            apiBaseUrl={API_BASE_URL}
+            token={token || ""}
+            mode="instances"
+          />
+        )}
+        {activeTab === "workflow-tasks" && (
+          <WorkflowWorkspace
+            apiBaseUrl={API_BASE_URL}
+            token={token || ""}
+            mode="tasks"
+          />
+        )}
+        {activeTab === "workflow-operations" && (
+          <WorkflowWorkspace
+            apiBaseUrl={API_BASE_URL}
+            token={token || ""}
+            mode="operations"
           />
         )}
 
-        {activeTab === "inspections" && (
-          <ModuleAvailabilityPanel
-            title="Inspections"
-            reason="module_not_implemented"
-          />
-        )}
-
-        {activeTab === "incidents" && (
-          <ModuleAvailabilityPanel
-            title="Incidents"
-            reason="module_not_implemented"
-          />
-        )}
-
-        {activeTab === "permits" && (
-          <ModuleAvailabilityPanel
-            title="Permits"
-            reason="module_not_implemented"
-          />
-        )}
-
+        {activeTab === "audits" && <EnvironmentalAuditsPage />}
+        {activeTab === "inspections" && <InspectionsPage />}
+        {activeTab === "incidents" && <IncidentsPage />}
+        {activeTab === "permits" && <PermitsPage />}
         {activeTab === "compliance" && (
-          <ModuleAvailabilityPanel
-            title="Compliance"
-            reason="module_not_implemented"
-          />
+          <CompliancePage facilities={facilities} />
         )}
-
-        {activeTab === "enforcement" && (
-          <ModuleAvailabilityPanel
-            title="Enforcement Notices"
-            reason="module_not_implemented"
-          />
-        )}
-
-        {activeTab === "waste" && (
-          <ModuleAvailabilityPanel
-            title="Waste Management"
-            reason="module_not_implemented"
-          />
-        )}
-
-        {activeTab === "monitoring" && (
-          <ModuleAvailabilityPanel
-            title="Environmental Monitoring"
-            reason="module_not_implemented"
-          />
-        )}
-
+        {activeTab === "enforcement" && <EnforcementNoticesPage />}
+        {activeTab === "waste" && <WasteManagementPage />}
+        {activeTab === "monitoring" && <EnvironmentalMonitoringPage />}
         {activeTab === "gis" && (
-          <ModuleAvailabilityPanel
-            title="GIS & Mapping"
-            reason="module_not_enabled"
-          />
+          <EnvironmentalMapsPage facilities={facilities} />
         )}
-
-        {activeTab === "reports" && (
-          <ModuleAvailabilityPanel
-            title="Reports"
-            reason="module_not_implemented"
-          />
-        )}
+        {activeTab === "reports" && <ReportsPage facilities={facilities} />}
 
         {activeTab === ("denied" as any) && (
           <AccessDeniedPage
@@ -1529,7 +1948,9 @@ function App() {
           token={token || ""}
           triggerButtonRef={registerButtonRef}
           isOfficer={isOfficer}
-          onViewFacility={(facilityId) => navigateHash(`#/facilities/${facilityId}`)}
+          onViewFacility={(facilityId) =>
+            navigateHash(`#/facilities/${facilityId}`)
+          }
         />
       )}
       {selectedFacilityId && (
@@ -1544,7 +1965,11 @@ function App() {
       <GuidedDemoPanel
         token={token}
         onNavigateTab={navigateLegacyTab}
-        onSetSelectedFacilityId={(facilityId) => facilityId ? navigateHash(`#/facilities/${facilityId}`) : navigateLegacyTab("registry")}
+        onSetSelectedFacilityId={(facilityId) =>
+          facilityId
+            ? navigateHash(`#/facilities/${facilityId}`)
+            : navigateLegacyTab("registry")
+        }
         onRefreshData={fetchData}
       />
     </AppShell>
