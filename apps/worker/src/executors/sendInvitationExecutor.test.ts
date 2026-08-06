@@ -1,89 +1,103 @@
-import * as fs from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { encryptPayload } from "@govos/core";
-import { DevelopmentMailbox } from "@govos/infrastructure";
+import { NotificationIntakeService } from "@govos/infrastructure";
 import { SendInvitationExecutor } from "./sendInvitationExecutor.js";
 
-describe("NOTIFY-1 development notification provider", () => {
+describe("WF-2 legacy invitation compatibility adapter", () => {
   const key = "a".repeat(64);
   const tenantId = "00000000-0000-0000-0000-000000000001";
-  const secretToken = "never-log-this-token";
-  const activationUrl = `http://localhost/#/accept?token=${secretToken}`;
-  let mailboxPath: string;
-  let oldEnv: NodeJS.ProcessEnv;
-
-  beforeEach(async () => {
-    oldEnv = { ...process.env };
-    mailboxPath = await fs.mkdtemp(path.join(os.tmpdir(), "govos-mailbox-"));
-    process.env.DEV_MAILBOX_PATH = mailboxPath;
+  beforeEach(() => {
     process.env.ENCRYPTION_KEY = key;
-    process.env.NODE_ENV = "development";
+    vi.spyOn(NotificationIntakeService, "intake").mockResolvedValue({
+      requestId: "canonical-request",
+      state: "accepted",
+    });
   });
-
-  afterEach(async () => {
-    process.env = oldEnv;
-    await fs.rm(mailboxPath, { recursive: true, force: true });
-    vi.restoreAllMocks();
-  });
-
-  function executor() {
-    const encrypted_payload = encryptPayload({ invitationId: "invite-1", recipientEmail: "owner@example.test", activationUrl, expiresAt: new Date(Date.now() + 60_000).toISOString() }, key, "v1");
-    const pool = { query: vi.fn().mockResolvedValue({ rows: [{ tenant_id: tenantId, encrypted_payload }] }) };
-    return new SendInvitationExecutor(pool as never);
+  afterEach(() => vi.restoreAllMocks());
+  function makeExecutor(overrides: Record<string, unknown> = {}) {
+    const encrypted_payload = encryptPayload(
+      {
+        invitationId: "invite-1",
+        recipientEmail: "owner@example.test",
+        activationUrl: "https://govos.test/#/accept?token=secret",
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+        ...overrides,
+      },
+      key,
+      "v1",
+    );
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes("notification_template("))
+          return { rows: [{ id: "template" }] };
+        if (sql.includes("SELECT id FROM notification_template_version"))
+          return { rows: [{ id: "version" }] };
+        if (sql.includes("notification_provider_route("))
+          return { rows: [{ id: "route" }] };
+        return { rows: [], rowCount: 1 };
+      }),
+      release: vi.fn(),
+    };
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ tenant_id: tenantId, encrypted_payload }],
+      }),
+      connect: vi.fn().mockResolvedValue(client),
+    };
+    return {
+      executor: new SendInvitationExecutor(pool as never),
+      pool,
+      client,
+    };
   }
-
-  test("is never enabled implicitly", async () => {
-    delete process.env.GOVOS_NOTIFICATION_PROVIDER;
-    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    await executor().execute({ taskId: "task-disabled" });
-    expect(await fs.readdir(mailboxPath)).toEqual([]);
-    expect(log.mock.calls.flat().join(" ")).not.toContain(secretToken);
-    expect(log.mock.calls.flat().join(" ")).not.toContain(activationUrl);
+  test("delegates legacy payload to canonical intake with stable task idempotency", async () => {
+    const { executor } = makeExecutor();
+    await executor.execute({ taskId: "task-1" });
+    expect(NotificationIntakeService.intake).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId,
+        producerNamespace: "legacy.invitation",
+        idempotencyKey: "task-1",
+        semanticKey: "iam.invitation",
+        recipients: [
+          {
+            recipientType: "direct_destination",
+            recipientValue: "owner@example.test",
+          },
+        ],
+      }),
+    );
   });
-
-  test("stores protected notification content without logging secrets", async () => {
-    process.env.GOVOS_NOTIFICATION_PROVIDER = "development";
-    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    await executor().execute({ taskId: "task-enabled" });
-    const raw = await fs.readFile(path.join(mailboxPath, "task-enabled.json"), "utf8");
-    expect(raw).not.toContain(secretToken);
-    expect(raw).not.toContain(activationUrl);
-    expect(log).not.toHaveBeenCalled();
-    const safe = await new DevelopmentMailbox().view("task-enabled");
-    expect(safe).toMatchObject({ tenantId, deliveryStatus: "received", recipientEmail: "owner@example.test" });
-    expect(JSON.stringify(safe)).not.toContain(secretToken);
+  test("duplicate execution reuses the same canonical identity", async () => {
+    const { executor } = makeExecutor();
+    await executor.execute({ taskId: "task-duplicate" });
+    await executor.execute({ taskId: "task-duplicate" });
+    expect(
+      vi.mocked(NotificationIntakeService.intake).mock.calls[0]?.[1],
+    ).toMatchObject({
+      idempotencyKey: "task-duplicate",
+    });
+    expect(
+      vi.mocked(NotificationIntakeService.intake).mock.calls[1]?.[1],
+    ).toMatchObject({
+      idempotencyKey: "task-duplicate",
+    });
   });
-
-  test("controlled open decrypts in memory and status/delete operations work", async () => {
-    process.env.GOVOS_NOTIFICATION_PROVIDER = "development";
-    await executor().execute({ taskId: "task-lifecycle" });
-    const mailbox = new DevelopmentMailbox();
-    expect((await mailbox.open("task-lifecycle", key)).activationUrl).toBe(activationUrl);
-    await mailbox.markDelivered("task-lifecycle");
-    expect((await mailbox.view("task-lifecycle")).deliveryStatus).toBe("delivered");
-    await mailbox.delete("task-lifecycle");
-    await expect(mailbox.view("task-lifecycle")).rejects.toThrow();
+  test("rejects malformed decrypted payload before canonical mutation", async () => {
+    const { executor } = makeExecutor({ recipientEmail: "" });
+    await expect(executor.execute({ taskId: "task-invalid" })).rejects.toThrow(
+      "missing fields",
+    );
+    expect(NotificationIntakeService.intake).not.toHaveBeenCalled();
   });
-
-  test("worker retry is idempotent and creates one mailbox document", async () => {
-    process.env.GOVOS_NOTIFICATION_PROVIDER = "development";
-    const instance = executor();
-    await instance.execute({ taskId: "task-retry" });
-    await instance.execute({ taskId: "task-retry" });
-    expect(await fs.readdir(mailboxPath)).toEqual(["task-retry.json"]);
-  });
-
-  test("development adapter rejects calls when provider is disabled", async () => {
-    process.env.GOVOS_NOTIFICATION_PROVIDER = "production";
-    await expect(new DevelopmentMailbox().deliver({ notificationId: "task-direct", tenantId, notificationType: "invitation", subject: "subject", body: "body", payload: { invitationId: "invite", recipientEmail: "owner@example.test", activationUrl }, encryptionKey: key })).rejects.toThrow("disabled");
-  });
-
-  test("production cannot activate the development provider", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.GOVOS_NOTIFICATION_PROVIDER = "development";
-    await expect(executor().execute({ taskId: "task-production" })).rejects.toThrow("disabled");
-    expect(await fs.readdir(mailboxPath)).toEqual([]);
+  test("requires the encrypted task payload", async () => {
+    const { executor, pool } = makeExecutor();
+    pool.query.mockResolvedValueOnce({
+      rows: [{ tenant_id: tenantId, encrypted_payload: null }],
+    });
+    await expect(executor.execute({ taskId: "task-empty" })).rejects.toThrow(
+      "does not have an encrypted payload",
+    );
   });
 });

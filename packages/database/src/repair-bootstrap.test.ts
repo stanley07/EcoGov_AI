@@ -1,15 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { repairBootstrap } from "./repair-bootstrap.js";
 
-// Mock environment variables
-process.env.APP_ENV = "local";
-process.env.DATABASE_URL =
-  "postgres://postgres:postgres@localhost:5432/govos_db";
-process.env.AI_PROVIDER = "deterministic";
-process.env.ADMIN_EMAIL = "admin@example.com";
-process.env.ADMIN_PASSWORD = "password123Secure!";
-process.env.ADMIN_FIRST_NAME = "Admin";
-process.env.ADMIN_LAST_NAME = "User";
+const originalEnv = { ...process.env };
+beforeEach(() => {
+  process.env.APP_ENV = "local";
+  process.env.AI_PROVIDER = "deterministic";
+  process.env.ADMIN_EMAIL = "admin@example.com";
+  process.env.ADMIN_PASSWORD = "password123Secure!";
+  process.env.ADMIN_FIRST_NAME = "Admin";
+  process.env.ADMIN_LAST_NAME = "User";
+});
+afterEach(() => { process.env = { ...originalEnv }; });
 
 const mockQuery = vi.fn();
 const mockRelease = vi.fn();

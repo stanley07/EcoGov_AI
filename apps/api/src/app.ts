@@ -24,6 +24,7 @@ import { dashboardRoutes } from "./routes/dashboard.js";
 import { tenantIamRoutes } from "./routes/tenant-iam.js";
 import { accountSecurityRoutes } from "./routes/account-security.js";
 import { workflowRoutes } from "./routes/workflows.js";
+import { notificationRoutes } from "./routes/notifications.js";
 
 
 // Extend Fastify request interface
@@ -117,6 +118,7 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
       req.url.startsWith("/public/platform-statistics") ||
       req.url.startsWith("/public/marketplace/licences") ||
       req.url.startsWith("/marketplace") ||
+      req.url.startsWith("/internal/notifications/provider-callbacks/") ||
       (req.url === "/complaints" && req.method === "POST")
     ) {
       return;
@@ -213,6 +215,7 @@ export function createApp(config: Config, pool: Pool): FastifyInstance {
   app.register(tenantIamRoutes, { pool });
   app.register(accountSecurityRoutes, { pool });
   app.register(workflowRoutes, { pool });
+  app.register(notificationRoutes, { pool });
 
   return app;
 }

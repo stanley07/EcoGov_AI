@@ -25,6 +25,7 @@ import {
 } from "./app.js";
 import { SendInvitationExecutor } from "./executors/sendInvitationExecutor.js";
 import { WorkflowRuntimeWorker } from "./workflow-runtime.js";
+import { NotificationRuntimeWorker } from "@govos/infrastructure";
 
 export async function startServer(config: Config, pool: Pool): Promise<void> {
   // Construct registries once in composition root (Correction 14)
@@ -278,6 +279,7 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
   dispatcher.start();
   const workflowRuntime = new WorkflowRuntimeWorker(pool);
   workflowRuntime.start();
+  NotificationRuntimeWorker.start(pool);
 
   try {
     await app.listen({
@@ -307,6 +309,7 @@ export async function startServer(config: Config, pool: Pool): Promise<void> {
     try {
       dispatcher.stop();
       await workflowRuntime.stop();
+      await NotificationRuntimeWorker.stop();
       await app.close();
       logger.info("Worker HTTP listeners closed");
 
