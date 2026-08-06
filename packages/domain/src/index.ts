@@ -453,3 +453,297 @@ export interface MarketplaceRevenueLedger {
   createdAt: string;
 }
 
+// --- Milestone WF-2 Notification Platform Domain Entities ---
+
+export interface NotificationTemplate {
+  id: string;
+  tenantId?: string;
+  applicationKey?: string;
+  semanticKey: string;
+  name: string;
+  description?: string;
+  allowTenantOverride: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  version: number;
+}
+
+export interface NotificationTemplateVersion {
+  id: string;
+  tenantId?: string;
+  templateId: string;
+  versionNumber: number;
+  status: "draft" | "validating" | "published" | "deprecated";
+  variablesSchema?: Record<string, any>;
+  fixtureHash?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  publishedAt?: string;
+  publishedBy?: string;
+}
+
+export interface NotificationTemplateRendering {
+  id: string;
+  tenantId?: string;
+  templateVersionId: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  locale: string;
+  subjectTemplate?: string;
+  bodyTemplate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationTemplateBinding {
+  id: string;
+  tenantId: string;
+  organizationId?: string;
+  semanticKey: string;
+  tenantTemplateVersionId?: string;
+  catalogTemplateVersionId?: string;
+  status: "active" | "inactive";
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface NotificationChannelPolicy {
+  id: string;
+  tenantId: string;
+  organizationId?: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  allowOptOut: boolean;
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationUserPreference {
+  id: string;
+  tenantId: string;
+  userId: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  isSubscribed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationQuietHours {
+  id: string;
+  tenantId: string;
+  userId?: string;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+  timezone: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationSuppression {
+  id: string;
+  tenantId: string;
+  destinationDigest: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  reason?: string;
+  createdAt: string;
+}
+
+export interface NotificationRequest {
+  id: string;
+  tenantId: string;
+  organizationId?: string;
+  parentRequestId?: string;
+  producerNamespace: string;
+  idempotencyKey: string;
+  variables: Record<string, any>;
+  classification: "standard" | "legal" | "emergency";
+  priority: number;
+  state: "accepted" | "resolving" | "scheduled" | "processing" | "partially_delivered" | "delivered" | "suppressed" | "failed" | "dead_lettered" | "cancelled" | "expired";
+  semanticKey: string;
+  tenantTemplateVersionId?: string;
+  catalogTemplateVersionId?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface NotificationRecipient {
+  id: string;
+  tenantId: string;
+  requestId: string;
+  recipientType: "direct_user" | "direct_destination" | "role" | "organization" | "workflow_work_item" | "escalation_target" | "tenant_administrator" | "supervisor" | "webhook_endpoint";
+  resolvedUserId?: string;
+  createdAt: string;
+}
+
+export interface NotificationDestination {
+  id: string;
+  tenantId: string;
+  recipientId: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  encryptedValue: string;
+  destinationDigest: string;
+  createdAt: string;
+}
+
+export interface NotificationDelivery {
+  id: string;
+  tenantId: string;
+  requestId: string;
+  destinationId: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  state: "queued" | "scheduled" | "leased" | "sending" | "provider_accepted" | "delivered" | "transient_failed" | "rate_limited" | "permanent_failed" | "suppressed" | "dead_lettered" | "cancelled" | "expired";
+  deduplicationIdentity?: string;
+  scheduledAt: string;
+  nextAttemptAt: string;
+  retryCount: number;
+  maxAttempts: number;
+  leaseId?: string;
+  leaseExpiresAt?: string;
+  fencingToken: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface NotificationDeliveryAttempt {
+  id: string;
+  tenantId: string;
+  deliveryId: string;
+  attemptNumber: number;
+  providerKey: string;
+  status: "success" | "transient_failure" | "permanent_failure" | "rate_limited" | "ambiguous";
+  errorCode?: string;
+  errorMessageRedacted?: string;
+  providerMessageId?: string;
+  latencyMs?: number;
+  createdAt: string;
+}
+
+export interface NotificationDeliveryStatusHistory {
+  id: string;
+  tenantId: string;
+  requestId: string;
+  deliveryId?: string;
+  sequence: number;
+  oldState?: string;
+  newState: string;
+  transitionReason?: string;
+  createdAt: string;
+}
+
+export interface NotificationProvider {
+  key: string;
+  name: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  encryptedConfiguration: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationProviderRoute {
+  id: string;
+  tenantId: string;
+  channel: "email" | "sms" | "in-app" | "webhook";
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationProviderRouteEntry {
+  id: string;
+  routeId: string;
+  providerKey: string;
+  priority: number;
+  createdAt: string;
+}
+
+export interface NotificationProviderCallbackEndpoint {
+  id: string;
+  tenantId: string;
+  providerKey: string;
+  opaqueEndpointId: string;
+  adapterVersion: string;
+  isActive: boolean;
+  signatureAlgorithm: string;
+  encryptedSigningSecret: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface NotificationProviderCallback {
+  id: string;
+  tenantId: string;
+  endpointId: string;
+  providerMessageId: string;
+  rawPayloadRedacted: string;
+  processedAt: string;
+}
+
+export interface NotificationWebhookEndpoint {
+  id: string;
+  tenantId: string;
+  url: string;
+  encryptedSecret: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationWebhookChallenge {
+  id: string;
+  tenantId: string;
+  endpointId: string;
+  challengeToken: string;
+  state: "pending" | "verified" | "failed";
+  createdAt: string;
+}
+
+export interface NotificationRateLimitBucket {
+  id: string;
+  tenantId: string;
+  bucketKey: string;
+  tokens: number;
+  lastRefilledAt: string;
+  createdAt: string;
+}
+
+export interface NotificationDeduplicationRecord {
+  id: string;
+  tenantId: string;
+  deduplicationHash: string;
+  requestId: string;
+  createdAt: string;
+}
+
+export interface NotificationInboxItem {
+  id: string;
+  tenantId: string;
+  userId: string;
+  deliveryId: string;
+  subject: string;
+  bodyPreview: string;
+  renderedBody: string;
+  status: "unread" | "read" | "archived";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationAuditEvent {
+  id: string;
+  tenantId: string;
+  actorId?: string;
+  action: string;
+  resource: string;
+  context: Record<string, any>;
+  createdAt: string;
+}
+

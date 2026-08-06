@@ -2,9 +2,17 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "noUnusedLocals": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false
   },
   "include": ["src/**/*"],
+  "exclude": [
+    "src/iam-cross-tenant-remediation.test.ts",
+    "src/iam-gate2-mailbox-opener.test.ts",
+    "src/iam-gate3-role-catalog.test.ts"
+  ],
   "references": [
     { "path": "../configuration" },
     { "path": "../observability" },

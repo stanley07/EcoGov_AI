@@ -141,8 +141,8 @@ describe("Subcontractor Marketplace Dashboard & Health Resilience Tests", () => 
   // --- UI BEHAVIORAL LOGIC TESTS ---
 
   test("9. Dashboard widget failure isolation (Promise.allSettled behavior)", () => {
-    const mockSuccess = { status: "fulfilled", value: { summary: "success_data" } };
-    const mockFailure = { status: "rejected", reason: new Error("Connection Timeout") };
+    const mockSuccess = { status: "fulfilled", value: { summary: "success_data" } } as const;
+    const mockFailure = { status: "rejected", reason: new Error("Connection Timeout") } as const;
 
     const results = [mockSuccess, mockFailure, mockSuccess];
 

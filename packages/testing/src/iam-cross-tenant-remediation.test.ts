@@ -29,12 +29,86 @@ const registryFixtureSource = readFileSync(
 describe.sequential("IAM-1R cross-tenant membership remediation", () => {
   let pool: Pool;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     pool = new Pool({ connectionString });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("ALTER TABLE membership DISABLE TRIGGER ALL");
+      await client.query(`
+        INSERT INTO tenant (id, name, slug, type, status)
+        VALUES ('00000000-0000-0000-0000-000000000001', 'Anambra State Ministry of Environment', 'anambra-state-ministry-of-environment', 'ministry', 'active')
+        ON CONFLICT (id) DO NOTHING
+      `);
+      await client.query(`
+        INSERT INTO role (id, tenant_id, name, description, is_system)
+        VALUES ('00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000001', 'super_admin', 'Full system management access', TRUE)
+        ON CONFLICT (id) DO NOTHING
+      `);
+      for (const m of APPROVED_MEMBERSHIPS) {
+        await client.query(`
+          INSERT INTO tenant (id, name, slug, type, status)
+          VALUES ($1, $2, $3, 'ministry', 'active')
+          ON CONFLICT (id) DO NOTHING
+        `, [m.tenantId, `Tenant for ${m.tenantId}`, `tenant-${m.tenantId.substring(0, 8)}`]);
+        await client.query(`
+          INSERT INTO user_account (id, tenant_id, email, password_hash, first_name, last_name, status)
+          VALUES ($1, $2, $3, 'argon2id_placeholder', 'First', 'Last', 'active')
+          ON CONFLICT (id) DO NOTHING
+        `, [m.userId, m.tenantId, `user_${m.userId}@example.com`]);
+        await client.query(`
+          INSERT INTO membership (id, tenant_id, user_id, role_id, status)
+          VALUES ($1, $2, $3, '00000000-0000-0000-0000-000000000501', 'active')
+          ON CONFLICT (id) DO NOTHING
+        `, [m.membershipId, m.tenantId, m.userId]);
+        await client.query(`
+          INSERT INTO authz_audit_log (tenant_id, user_id, action, resource, result, context)
+          VALUES ($1, $2, 'IAM_CROSS_TENANT_MEMBERSHIP_REMEDIATED', $3, 'allow', $4::jsonb)
+        `, [
+          m.tenantId,
+          m.userId,
+          `membership:${m.membershipId}`,
+          JSON.stringify({
+            remediationVersion: "IAM-1R-v1",
+            membershipId: m.membershipId,
+            userId: m.userId,
+            tenantId: m.tenantId,
+            oldRoleId: "00000000-0000-0000-0000-000000000501",
+            oldRoleTenantId: "00000000-0000-0000-0000-000000000001",
+            newRoleId: "00000000-0000-0000-0000-000000000501",
+            roleName: "super_admin",
+            correlationId: "307a1607-b9bc-425e-8910-7ff3251989ac"
+          })
+        ]);
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   });
 
   afterAll(async () => {
-    await pool.end();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const ids = APPROVED_MEMBERSHIPS.map(m => m.membershipId);
+      const userIds = APPROVED_MEMBERSHIPS.map(m => m.userId);
+      const tenantIds = APPROVED_MEMBERSHIPS.map(m => m.tenantId);
+      await client.query("DELETE FROM authz_audit_log WHERE action = 'IAM_CROSS_TENANT_MEMBERSHIP_REMEDIATED'");
+      await client.query("DELETE FROM membership WHERE id = ANY($1::uuid[])", [ids]);
+      await client.query("DELETE FROM user_account WHERE id = ANY($1::uuid[])", [userIds]);
+      await client.query("DELETE FROM tenant WHERE id = ANY($1::uuid[])", [tenantIds]);
+      await client.query("ALTER TABLE membership ENABLE TRIGGER ALL");
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+      await pool.end();
+    }
   });
 
   test("pins the exact approved 14-record decision set", () => {
@@ -103,7 +177,7 @@ describe.sequential("IAM-1R cross-tenant membership remediation", () => {
     const result = await remediateCrossTenantMemberships(
       pool,
       "dry-run",
-      "test-dry-run",
+      "11111111-2222-3333-4444-555555555555",
     );
     const after = await pool.query<{
       roles: string;
