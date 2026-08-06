@@ -5,6 +5,7 @@ import {
   PrototypeLabel,
 } from "../shared/EnvironmentalUI.js";
 import type { EnvironmentalFacility } from "../shared/types.js";
+import { navigateTo } from "../shared/actions.js";
 
 const mapViews = ["Environmental Map", "Facility Map", "Incident Map"] as const;
 const colors: Record<string, string> = {
@@ -21,17 +22,32 @@ export function EnvironmentalMapsPage({
   const [view, setView] =
     useState<(typeof mapViews)[number]>("Environmental Map");
   const [risk, setRisk] = useState("all");
+  const [lga, setLga] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [selected, setSelected] = useState<EnvironmentalFacility | null>(null);
+  const lgas = Array.from(
+    new Set(
+      facilities
+        .map((facility) => facility.address.split(",").pop()?.trim())
+        .filter(Boolean),
+    ),
+  ) as string[];
+  const categories = Array.from(
+    new Set(facilities.map((facility) => facility.category)),
+  );
   const filtered = useMemo(
     () =>
       facilities
         .filter((f) => risk === "all" || f.riskRating === risk)
+        .filter((f) => lga === "all" || f.address.includes(lga))
+        .filter((f) => category === "all" || f.category === category)
         .filter(
           (f) =>
             Number.isFinite(f.latitude) &&
             Number.isFinite(f.longitude) &&
             !(f.latitude === 0 && f.longitude === 0),
         ),
-    [facilities, risk],
+    [facilities, risk, lga, category],
   );
   return (
     <div className="emis-page">
@@ -64,12 +80,38 @@ export function EnvironmentalMapsPage({
           <option value="medium">Non-compliant proxy</option>
           <option value="high">Critical risk</option>
         </select>
-        <select aria-label="Map LGA filter" disabled>
-          <option>All recorded LGAs</option>
+        <select
+          aria-label="Map LGA filter"
+          value={lga}
+          onChange={(event) => setLga(event.target.value)}
+        >
+          <option value="all">All recorded LGAs</option>
+          {lgas.map((value) => (
+            <option key={value}>{value}</option>
+          ))}
         </select>
-        <select aria-label="Map facility type filter" disabled>
-          <option>All facility types</option>
+        <select
+          aria-label="Map facility type filter"
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+        >
+          <option value="all">All facility types</option>
+          {categories.map((value) => (
+            <option key={value}>{value}</option>
+          ))}
         </select>
+        <button
+          type="button"
+          className="emis-action"
+          onClick={() => {
+            setRisk("all");
+            setLga("all");
+            setCategory("all");
+            setSelected(null);
+          }}
+        >
+          Reset map filters
+        </button>
       </FilterBar>
       <div
         className="emis-map"
@@ -82,6 +124,7 @@ export function EnvironmentalMapsPage({
             aria-label={`${facility.businessName}, ${facility.riskRating} risk`}
             title={`${facility.businessName} · ${facility.riskRating}`}
             key={facility.id}
+            onClick={() => setSelected(facility)}
             style={{
               left: `${12 + ((index * 23) % 78)}%`,
               top: `${18 + ((index * 31) % 68)}%`,
@@ -95,6 +138,37 @@ export function EnvironmentalMapsPage({
           </div>
         )}
       </div>
+      {selected && (
+        <div className="emis-card">
+          <h3>{selected.businessName}</h3>
+          <p>
+            {selected.address} · {selected.riskRating} risk
+          </p>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() => navigateTo(`#/facilities/${selected.id}`)}
+          >
+            Open facility profile
+          </button>
+        </div>
+      )}
+      {!filtered.length && view !== "Incident Map" && (
+        <div className="emis-empty">
+          <p>No facilities with recorded coordinates match these filters.</p>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() => {
+              setRisk("all");
+              setLga("all");
+              setCategory("all");
+            }}
+          >
+            Clear map filters
+          </button>
+        </div>
+      )}
       <div className="emis-actions">
         <span style={{ color: "#22c55e" }}>● Compliant</span>
         <span style={{ color: "#eab308" }}>● Under Review</span>

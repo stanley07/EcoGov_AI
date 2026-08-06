@@ -29,6 +29,7 @@ import { EnvironmentalMonitoringPage } from "./environmental/monitoring/Environm
 import { EnvironmentalMapsPage } from "./environmental/maps/EnvironmentalMapsPage.js";
 import { ReportsPage } from "./environmental/reports/ReportsPage.js";
 import "./environmental/environmental.css";
+import { downloadCsv } from "./environmental/shared/actions.js";
 
 // Layout shell component imports
 import { AppShell } from "./layout/AppShell.js";
@@ -1309,6 +1310,42 @@ function App() {
                 }}
               >
                 Clear Filters
+              </button>
+              <button type="button" className="emis-action" onClick={fetchData}>
+                Refresh
+              </button>
+              <button
+                type="button"
+                className="emis-action"
+                disabled={!facilities.length}
+                title={
+                  !facilities.length
+                    ? "No facility rows are available."
+                    : "Export current page"
+                }
+                onClick={() =>
+                  downloadCsv(
+                    "facilities.csv",
+                    [
+                      "Facility,Category,Address,Status,Risk",
+                      ...facilities.map((facility) =>
+                        [
+                          facility.businessName,
+                          facility.category,
+                          facility.address,
+                          facility.registrationStatus,
+                          facility.riskRating,
+                        ]
+                          .map(
+                            (value) => `"${String(value).replace(/"/g, '""')}"`,
+                          )
+                          .join(","),
+                      ),
+                    ].join("\r\n"),
+                  )
+                }
+              >
+                Export CSV
               </button>
             </div>
 

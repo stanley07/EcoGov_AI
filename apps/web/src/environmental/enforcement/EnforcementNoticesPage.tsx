@@ -1,10 +1,13 @@
 import { useState } from "react";
 import {
   DetailPanel,
+  DisabledPrototypeAction,
+  FilterBar,
   ModuleHeader,
   PrototypeLabel,
   SummaryCards,
 } from "../shared/EnvironmentalUI.js";
+import { navigateTo, openPrintPreview } from "../shared/actions.js";
 
 const notices = [
   {
@@ -30,12 +33,49 @@ export function EnforcementNoticesPage() {
   const [selected, setSelected] = useState<(typeof notices)[number] | null>(
     null,
   );
+  const [type, setType] = useState("all");
+  const [status, setStatus] = useState("all");
+  const filtered = notices.filter(
+    (notice) =>
+      (type === "all" || notice.type === type) &&
+      (status === "all" || notice.status === status),
+  );
   return (
     <div className="emis-page">
       <ModuleHeader
         title="Enforcement Notices"
         description="Warning letters, abatement notices, stop-work orders, compliance orders and prosecution recommendations."
       />
+      <FilterBar>
+        <select
+          aria-label="Notice type"
+          value={type}
+          onChange={(event) => setType(event.target.value)}
+        >
+          <option value="all">All types</option>
+          <option>Abatement Notice</option>
+          <option>Warning Letter</option>
+        </select>
+        <select
+          aria-label="Notice status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="all">All statuses</option>
+          <option>Draft preview</option>
+          <option>Under review</option>
+        </select>
+        <button
+          type="button"
+          className="emis-action"
+          onClick={() => {
+            setType("all");
+            setStatus("all");
+          }}
+        >
+          Clear filters
+        </button>
+      </FilterBar>
       <SummaryCards
         items={[
           { label: "Prototype notices", value: notices.length },
@@ -57,8 +97,16 @@ export function EnforcementNoticesPage() {
             </tr>
           </thead>
           <tbody>
-            {notices.map((n) => (
-              <tr key={n.id} tabIndex={0} onClick={() => setSelected(n)}>
+            {filtered.map((n) => (
+              <tr
+                key={n.id}
+                tabIndex={0}
+                onClick={() => setSelected(n)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ")
+                    setSelected(n);
+                }}
+              >
                 <td>{n.id}</td>
                 <td>{n.type}</td>
                 <td>{n.source}</td>
@@ -87,6 +135,19 @@ export function EnforcementNoticesPage() {
           <p>
             <strong>Origin:</strong> {selected.source}
           </p>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() =>
+              navigateTo(
+                selected.source.startsWith("AUD")
+                  ? "#/operations/audits"
+                  : "#/operations/incidents",
+              )
+            }
+          >
+            Open originating record
+          </button>
           <p>
             <strong>Facility:</strong> {selected.facility}
           </p>
@@ -97,9 +158,14 @@ export function EnforcementNoticesPage() {
             Preview only. Issue action is disabled until the production
             enforcement service exists.
           </p>
-          <button className="emis-action" disabled>
-            Issue notice
+          <button
+            type="button"
+            className="emis-action"
+            onClick={openPrintPreview}
+          >
+            Print notice preview
           </button>
+          <DisabledPrototypeAction>Issue notice</DisabledPrototypeAction>
         </DetailPanel>
       )}
     </div>

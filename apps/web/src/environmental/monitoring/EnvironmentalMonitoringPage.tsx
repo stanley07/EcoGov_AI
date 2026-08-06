@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { ModuleHeader, PrototypeLabel } from "../shared/EnvironmentalUI.js";
+import {
+  FilterBar,
+  ModuleHeader,
+  PrototypeLabel,
+} from "../shared/EnvironmentalUI.js";
+import { navigateTo } from "../shared/actions.js";
 
 const modes = [
   "Air Quality",
@@ -9,6 +14,7 @@ const modes = [
 ] as const;
 export function EnvironmentalMonitoringPage() {
   const [mode, setMode] = useState<(typeof modes)[number]>("Air Quality");
+  const [query, setQuery] = useState("");
   return (
     <div className="emis-page">
       <ModuleHeader
@@ -27,6 +33,28 @@ export function EnvironmentalMonitoringPage() {
           </button>
         ))}
       </div>
+      <FilterBar>
+        <input
+          aria-label="Filter monitoring records"
+          placeholder="Station or laboratory reference"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button
+          type="button"
+          className="emis-action"
+          onClick={() => setQuery("")}
+        >
+          Clear filter
+        </button>
+        <button
+          type="button"
+          className="emis-action"
+          onClick={() => navigateTo("#/gis")}
+        >
+          Open map
+        </button>
+      </FilterBar>
       <article className="emis-card">
         <div className="emis-section-title">
           <h2>{mode}</h2>
@@ -38,6 +66,7 @@ export function EnvironmentalMonitoringPage() {
             Sensor ingestion, calibration, units and laboratory chain-of-custody
             are deferred to the production slice.
           </p>
+          {query && <p>No record matches “{query}”.</p>}
         </div>
       </article>
     </div>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   DetailPanel,
+  DisabledPrototypeAction,
+  FilterBar,
   ModuleHeader,
   RecordTable,
   SummaryCards,
@@ -10,6 +12,10 @@ import type { PrototypeRecord } from "../shared/types.js";
 
 export function PermitsPage() {
   const [selected, setSelected] = useState<PrototypeRecord | null>(null);
+  const [status, setStatus] = useState("all");
+  const records = prototypePermits.filter(
+    (record) => status === "all" || record.status === status,
+  );
   return (
     <div className="emis-page">
       <ModuleHeader
@@ -24,7 +30,25 @@ export function PermitsPage() {
           { label: "Suspended / revoked", value: 0 },
         ]}
       />
-      <RecordTable records={prototypePermits} onSelect={setSelected} />
+      <FilterBar>
+        <select
+          aria-label="Permit status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="all">All statuses</option>
+          <option>Active</option>
+          <option>Renewal due</option>
+        </select>
+        <button
+          type="button"
+          className="emis-action"
+          onClick={() => setStatus("all")}
+        >
+          Clear filter
+        </button>
+      </FilterBar>
+      <RecordTable records={records} onSelect={setSelected} />
       {selected && (
         <DetailPanel
           title={`Permit preview · ${selected.id}`}
@@ -50,6 +74,17 @@ export function PermitsPage() {
             <button className="emis-action" onClick={() => window.print()}>
               Print preview
             </button>
+            <button
+              type="button"
+              className="emis-action"
+              onClick={() =>
+                alert(`Renewal preview for ${selected.id}. No changes saved.`)
+              }
+            >
+              Renewal preview
+            </button>
+            <DisabledPrototypeAction>Suspend permit</DisabledPrototypeAction>
+            <DisabledPrototypeAction>Revoke permit</DisabledPrototypeAction>
           </div>
         </DetailPanel>
       )}

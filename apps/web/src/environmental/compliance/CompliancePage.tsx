@@ -6,6 +6,7 @@ import {
   PrototypeLabel,
 } from "../shared/EnvironmentalUI.js";
 import type { EnvironmentalFacility } from "../shared/types.js";
+import { downloadCsv, navigateTo } from "../shared/actions.js";
 
 export const calculatePrototypeCompliance = (
   components: Record<string, number>,
@@ -38,10 +39,22 @@ export function CompliancePage({
 }) {
   const [selected, setSelected] = useState<EnvironmentalFacility | null>(null);
   const [risk, setRisk] = useState("all");
+  const [sort, setSort] = useState("score-desc");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const score = calculatePrototypeCompliance(baseComponents);
   const ranked = useMemo(
-    () => facilities.filter((f) => risk === "all" || f.riskRating === risk),
-    [facilities, risk],
+    () =>
+      facilities
+        .filter((f) => risk === "all" || f.riskRating === risk)
+        .slice()
+        .sort((a, b) =>
+          sort === "name"
+            ? a.businessName.localeCompare(b.businessName)
+            : sort === "score-asc"
+              ? a.riskRating.localeCompare(b.riskRating)
+              : b.riskRating.localeCompare(a.riskRating),
+        ),
+    [facilities, risk, sort],
   );
   return (
     <div className="emis-page">
@@ -67,13 +80,25 @@ export function CompliancePage({
           <h2>Component contributions</h2>
           <div className="emis-breakdown">
             {Object.entries(baseComponents).map(([name, value]) => (
-              <div className="emis-breakdown-row" key={name}>
+              <button
+                type="button"
+                className="emis-breakdown-row emis-card-action"
+                key={name}
+                onClick={() => setExpanded(expanded === name ? null : name)}
+                aria-expanded={expanded === name}
+              >
                 <span>{name}</span>
                 <div className="emis-progress">
                   <span style={{ width: `${value}%` }} />
                 </div>
                 <strong>{value}%</strong>
-              </div>
+                {expanded === name && (
+                  <small>
+                    {name} contributes one equally weighted input to this
+                    demonstration formula.
+                  </small>
+                )}
+              </button>
             ))}
           </div>
         </article>
@@ -94,6 +119,41 @@ export function CompliancePage({
             <option value="medium">Medium risk</option>
             <option value="low">Low risk</option>
           </select>
+          <select
+            aria-label="Sort facility ranking"
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            <option value="score-desc">Score high to low</option>
+            <option value="score-asc">Score low to high</option>
+            <option value="name">Facility name</option>
+          </select>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() => {
+              setRisk("all");
+              setSort("score-desc");
+            }}
+          >
+            Clear filters
+          </button>
+          <button
+            type="button"
+            className="emis-action"
+            disabled={!ranked.length}
+            onClick={() =>
+              downloadCsv(
+                "prototype-compliance.csv",
+                [
+                  "Facility,Risk",
+                  ...ranked.map((f) => `"${f.businessName}",${f.riskRating}`),
+                ].join("\r\n"),
+              )
+            }
+          >
+            Export CSV
+          </button>
         </FilterBar>
         {ranked.length ? (
           <div className="emis-table-wrap">
@@ -119,6 +179,10 @@ export function CompliancePage({
                       key={facility.id}
                       tabIndex={0}
                       onClick={() => setSelected(facility)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ")
+                          setSelected(facility);
+                      }}
                     >
                       <td>{facility.businessName}</td>
                       <td>{facility.riskRating}</td>
@@ -152,6 +216,17 @@ export function CompliancePage({
               </p>
             ))}
           </div>
+          <p>
+            <strong>Classification:</strong> 85+ Fully Compliant; 65–84
+            Partially Compliant; 40–64 Non-Compliant; below 40 Critical Risk.
+          </p>
+          <button
+            type="button"
+            className="emis-action"
+            onClick={() => navigateTo(`#/facilities/${selected.id}`)}
+          >
+            Open facility profile
+          </button>
         </DetailPanel>
       )}
     </div>
