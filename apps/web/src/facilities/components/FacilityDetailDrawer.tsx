@@ -33,6 +33,19 @@ interface FacilityDetail {
   primaryImageUrl?: string | null;
 }
 
+export const FACILITY_PROFILE_TABS = [
+  "Overview",
+  "Audits",
+  "Inspections",
+  "Incidents",
+  "Permits",
+  "Compliance",
+  "Environmental Monitoring",
+  "Documents",
+  "Photos",
+  "History",
+] as const;
+
 export function FacilityDetailDrawer({
   facilityId,
   token,
@@ -44,6 +57,8 @@ export function FacilityDetailDrawer({
   const [detail, setDetail] = useState<FacilityDetail | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
+  const [activeProfileTab, setActiveProfileTab] =
+    useState<(typeof FACILITY_PROFILE_TABS)[number]>("Overview");
 
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -59,7 +74,7 @@ export function FacilityDetailDrawer({
       }
       if (e.key === "Tab" && drawerRef.current) {
         const focusable = drawerRef.current.querySelectorAll(
-          'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex="0"]'
+          'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex="0"]',
         );
         const first = focusable[0] as HTMLElement;
         const last = focusable[focusable.length - 1] as HTMLElement;
@@ -86,9 +101,12 @@ export function FacilityDetailDrawer({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:8080/facilities/${facilityId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `http://localhost:8080/facilities/${facilityId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (!res.ok) {
           throw new Error("Failed to load facility details");
         }
@@ -99,7 +117,7 @@ export function FacilityDetailDrawer({
         if (data.registrationId) {
           const lineRes = await fetch(
             `http://localhost:8080/workbench/registrations/${data.registrationId}/timeline`,
-            { headers: { Authorization: `Bearer ${token}` } }
+            { headers: { Authorization: `Bearer ${token}` } },
           );
           if (lineRes.ok) {
             const lineData = await lineRes.json();
@@ -117,7 +135,10 @@ export function FacilityDetailDrawer({
   }, [facilityId, token]);
 
   // Redaction helper for contact info
-  const redact = (val: string | null | undefined, type: "email" | "phone" | "name") => {
+  const redact = (
+    val: string | null | undefined,
+    type: "email" | "phone" | "name",
+  ) => {
     if (!val) return "Not provided";
     if (isOfficer) return val; // Officers see full info
 
@@ -126,7 +147,7 @@ export function FacilityDetailDrawer({
       if (parts.length < 2) return "***";
       const name = parts[0] || "";
       const domain = parts[1] || "";
-      const visible = name.length > 2 ? name.substring(0, 2) : (name[0] || "*");
+      const visible = name.length > 2 ? name.substring(0, 2) : name[0] || "*";
       return `${visible}***@${domain}`;
     }
     if (type === "phone") {
@@ -186,254 +207,494 @@ export function FacilityDetailDrawer({
           <div style={errorContainerStyle}>
             <span style={{ fontSize: "2rem" }}>⚠️</span>
             <p>{error || "Facility not found"}</p>
-            <button onClick={onClose} style={actionBtnStyle}>Close Panel</button>
+            <button onClick={onClose} style={actionBtnStyle}>
+              Close Panel
+            </button>
           </div>
         ) : (
           <div style={contentStyle}>
-            {/* Facility Image Header inside drawer */}
-            <div style={{
-              width: "100%",
-              height: "160px",
-              borderRadius: "8px",
-              overflow: "hidden",
-              marginBottom: "15px",
-              border: "1px solid #334155",
-              background: "#0f172a",
-              position: "relative"
-            }}>
-              <img
-                src={detail.primaryImageUrl || "/facility_placeholder.jpg"}
-                alt={`${detail.businessName} facility`}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  if (target.src !== "/facility_placeholder.jpg") {
-                    target.src = "/facility_placeholder.jpg";
-                  }
+            <div
+              role="tablist"
+              aria-label="Facility profile sections"
+              style={{
+                display: "flex",
+                gap: "6px",
+                overflowX: "auto",
+                paddingBottom: "8px",
+                marginBottom: "14px",
+              }}
+            >
+              {FACILITY_PROFILE_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  role="tab"
+                  aria-selected={activeProfileTab === tab}
+                  onClick={() => setActiveProfileTab(tab)}
+                  style={{
+                    minHeight: "42px",
+                    whiteSpace: "nowrap",
+                    border:
+                      activeProfileTab === tab
+                        ? "1px solid #38bdf8"
+                        : "1px solid #334155",
+                    background:
+                      activeProfileTab === tab ? "#0c4a6e" : "#1e293b",
+                    color: activeProfileTab === tab ? "#bae6fd" : "#cbd5e1",
+                    borderRadius: "7px",
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {activeProfileTab !== "Overview" && (
+              <div style={sectionStyle} role="tabpanel">
+                <h3 style={{ marginTop: 0 }}>{activeProfileTab}</h3>
+                {activeProfileTab === "Compliance" ? (
+                  <>
+                    <div style={gridStyle}>
+                      <div>
+                        <div style={labelStyle}>EIA Available</div>
+                        <div style={valueStyle}>No production record</div>
+                      </div>
+                      <div>
+                        <div style={labelStyle}>Environmental Audit</div>
+                        <div style={valueStyle}>No production record</div>
+                      </div>
+                      <div>
+                        <div style={labelStyle}>Waste Permit</div>
+                        <div style={valueStyle}>No production record</div>
+                      </div>
+                      <div>
+                        <div style={labelStyle}>Air / Water Permit</div>
+                        <div style={valueStyle}>No production record</div>
+                      </div>
+                    </div>
+                    <p style={emptyTimelineStyle}>
+                      Prototype compliance sections are informational and are
+                      not persisted.
+                    </p>
+                  </>
+                ) : activeProfileTab === "History" ? (
+                  timeline.length ? (
+                    <div style={timelineContainerStyle}>
+                      {timeline.map((event) => (
+                        <div
+                          style={timelineContentCardStyle}
+                          key={event.eventId}
+                        >
+                          <strong>{event.title}</strong>
+                          <p style={{ color: "#94a3b8" }}>
+                            {event.summary} ·{" "}
+                            {new Date(event.occurredAt).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={emptyTimelineStyle}>
+                      No workflow history is available for this facility.
+                    </div>
+                  )
+                ) : activeProfileTab === "Photos" ? (
+                  <div
+                    style={{
+                      ...emptyTimelineStyle,
+                      minHeight: "140px",
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    No production photographs are attached.
+                  </div>
+                ) : (
+                  <div style={emptyTimelineStyle}>
+                    No production {activeProfileTab.toLowerCase()} records are
+                    connected. This tab is ready for the production
+                    environmental data slice.
+                  </div>
+                )}
+              </div>
+            )}
+            <div
+              style={{
+                display: activeProfileTab === "Overview" ? "contents" : "none",
+              }}
+            >
+              {/* Facility Image Header inside drawer */}
+              <div
+                style={{
+                  width: "100%",
+                  height: "160px",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  marginBottom: "15px",
+                  border: "1px solid #334155",
+                  background: "#0f172a",
+                  position: "relative",
                 }}
-              />
-            </div>
+              >
+                <img
+                  src={detail.primaryImageUrl || "/facility_placeholder.jpg"}
+                  alt={`${detail.businessName} facility`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    if (target.src !== "/facility_placeholder.jpg") {
+                      target.src = "/facility_placeholder.jpg";
+                    }
+                  }}
+                />
+              </div>
 
-            {/* Business Title Card */}
-            <div style={cardStyle}>
-              <h3 style={{ margin: "0 0 10px", fontSize: "1.4rem", color: "#f8fafc" }}>
-                {detail.businessName}
-              </h3>
-              <div style={badgeRowStyle}>
-                <span style={{ ...badgeStyle, background: "#1e293b", color: "#38bdf8", borderColor: "#0ea5e9" }}>
-                  {detail.category.replace("_", " ").toUpperCase()}
-                </span>
-                <span
+              {/* Business Title Card */}
+              <div style={cardStyle}>
+                <h3
                   style={{
-                    ...badgeStyle,
-                    background:
-                      detail.riskRating === "high"
-                        ? "rgba(239, 68, 68, 0.15)"
-                        : detail.riskRating === "medium"
-                          ? "rgba(251, 191, 36, 0.15)"
-                          : "rgba(16, 185, 129, 0.15)",
-                    color:
-                      detail.riskRating === "high"
-                        ? "#fca5a5"
-                        : detail.riskRating === "medium"
-                          ? "#fde047"
-                          : "#a7f3d0",
-                    borderColor:
-                      detail.riskRating === "high"
-                        ? "#ef4444"
-                        : detail.riskRating === "medium"
-                          ? "#f59e0b"
-                          : "#10b981",
+                    margin: "0 0 10px",
+                    fontSize: "1.4rem",
+                    color: "#f8fafc",
                   }}
                 >
-                  RISK: {detail.riskRating.toUpperCase()}
-                </span>
-                <span
-                  style={{
-                    ...badgeStyle,
-                    background:
-                      detail.registrationStatus === "approved"
-                        ? "rgba(16, 185, 129, 0.15)"
-                        : detail.registrationStatus === "rejected"
+                  {detail.businessName}
+                </h3>
+                <div style={badgeRowStyle}>
+                  <span
+                    style={{
+                      ...badgeStyle,
+                      background: "#1e293b",
+                      color: "#38bdf8",
+                      borderColor: "#0ea5e9",
+                    }}
+                  >
+                    {detail.category.replace("_", " ").toUpperCase()}
+                  </span>
+                  <span
+                    style={{
+                      ...badgeStyle,
+                      background:
+                        detail.riskRating === "high"
                           ? "rgba(239, 68, 68, 0.15)"
-                          : "rgba(56, 189, 248, 0.15)",
-                    color:
-                      detail.registrationStatus === "approved"
-                        ? "#a7f3d0"
-                        : detail.registrationStatus === "rejected"
+                          : detail.riskRating === "medium"
+                            ? "rgba(251, 191, 36, 0.15)"
+                            : "rgba(16, 185, 129, 0.15)",
+                      color:
+                        detail.riskRating === "high"
                           ? "#fca5a5"
-                          : "#bae6fd",
-                    borderColor:
-                      detail.registrationStatus === "approved"
-                        ? "#10b981"
-                        : detail.registrationStatus === "rejected"
+                          : detail.riskRating === "medium"
+                            ? "#fde047"
+                            : "#a7f3d0",
+                      borderColor:
+                        detail.riskRating === "high"
                           ? "#ef4444"
-                          : "#38bdf8",
-                  }}
-                >
-                  {detail.registrationStatus.toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            {/* Basic Info Section */}
-            <div style={sectionStyle}>
-              <h4 style={sectionHeaderStyle}>📋 Registration Source & Metadata</h4>
-              <div style={gridStyle}>
-                <div>
-                  <div style={labelStyle}>Registration Source</div>
-                  <div style={valueStyle}>{detail.registrationSource ? detail.registrationSource.toUpperCase() : "LEGACY"}</div>
-                </div>
-                <div>
-                  <div style={labelStyle}>Date Registered</div>
-                  <div style={valueStyle}>{new Date(detail.createdAt).toLocaleDateString()}</div>
-                </div>
-                {detail.registrationId && (
-                  <div>
-                    <div style={labelStyle}>Registration Case ID</div>
-                    <div style={valueStyle}><code>{detail.registrationId}</code></div>
-                  </div>
-                )}
-                {detail.ownerUserId && (
-                  <div>
-                    <div style={labelStyle}>Owner User Reference</div>
-                    <div style={valueStyle}><code>{detail.ownerUserId}</code></div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Location Section */}
-            <div style={sectionStyle}>
-              <h4 style={sectionHeaderStyle}>📍 Geographic Location</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px" }}>
-                <div>
-                  <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
-                    <strong>Address:</strong> {detail.address}
-                  </p>
-                  <p style={{ margin: "5px 0", color: "#cbd5e1" }}>
-                    <strong>Town/City:</strong> {detail.town || "Awka"}
-                  </p>
-                  <p style={{ margin: "5px 0", color: "#cbd5e1" }}>
-                    <strong>LGA Name:</strong> {detail.lga || "Awka South"}
-                  </p>
-                  <p style={{ margin: "5px 0", color: "#94a3b8", fontSize: "0.85rem" }}>
-                    <strong>GPS Coordinates:</strong> {detail.latitude.toFixed(6)}, {detail.longitude.toFixed(6)}
-                  </p>
-                </div>
-
-                {/* Mock Map Coordinate Preview */}
-                <div style={mockMapStyle}>
-                  <div style={mapGridStyle}>
-                    <div style={mapMarkerStyle} />
-                  </div>
-                  <span style={{ fontSize: "0.7rem", color: "#94a3b8", display: "block", textAlign: "center", marginTop: "4px" }}>
-                    Anambra GIS Plot
+                          : detail.riskRating === "medium"
+                            ? "#f59e0b"
+                            : "#10b981",
+                    }}
+                  >
+                    RISK: {detail.riskRating.toUpperCase()}
+                  </span>
+                  <span
+                    style={{
+                      ...badgeStyle,
+                      background:
+                        detail.registrationStatus === "approved"
+                          ? "rgba(16, 185, 129, 0.15)"
+                          : detail.registrationStatus === "rejected"
+                            ? "rgba(239, 68, 68, 0.15)"
+                            : "rgba(56, 189, 248, 0.15)",
+                      color:
+                        detail.registrationStatus === "approved"
+                          ? "#a7f3d0"
+                          : detail.registrationStatus === "rejected"
+                            ? "#fca5a5"
+                            : "#bae6fd",
+                      borderColor:
+                        detail.registrationStatus === "approved"
+                          ? "#10b981"
+                          : detail.registrationStatus === "rejected"
+                            ? "#ef4444"
+                            : "#38bdf8",
+                    }}
+                  >
+                    {detail.registrationStatus.toUpperCase()}
                   </span>
                 </div>
               </div>
-            </div>
 
-            {/* Contact Details Section */}
-            <div style={sectionStyle}>
-              <h4 style={sectionHeaderStyle}>📞 Contact Information</h4>
-              <div style={gridStyle}>
-                <div>
-                  <div style={labelStyle}>Contact Representative</div>
-                  <div style={valueStyle}>{redact(detail.contactPerson, "name")}</div>
-                </div>
-                <div>
-                  <div style={labelStyle}>Contact Email</div>
-                  <div style={valueStyle}>{redact(detail.contactEmail, "email")}</div>
-                </div>
-                <div>
-                  <div style={labelStyle}>Contact Phone</div>
-                  <div style={valueStyle}>{redact(detail.contactPhone, "phone")}</div>
+              {/* Basic Info Section */}
+              <div style={sectionStyle}>
+                <h4 style={sectionHeaderStyle}>
+                  📋 Registration Source & Metadata
+                </h4>
+                <div style={gridStyle}>
+                  <div>
+                    <div style={labelStyle}>Registration Source</div>
+                    <div style={valueStyle}>
+                      {detail.registrationSource
+                        ? detail.registrationSource.toUpperCase()
+                        : "LEGACY"}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Date Registered</div>
+                    <div style={valueStyle}>
+                      {new Date(detail.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  {detail.registrationId && (
+                    <div>
+                      <div style={labelStyle}>Registration Case ID</div>
+                      <div style={valueStyle}>
+                        <code>{detail.registrationId}</code>
+                      </div>
+                    </div>
+                  )}
+                  {detail.ownerUserId && (
+                    <div>
+                      <div style={labelStyle}>Owner User Reference</div>
+                      <div style={valueStyle}>
+                        <code>{detail.ownerUserId}</code>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-              {!isOfficer && (
-                <div style={redactedWarningStyle}>
-                  💡 Contact fields are redacted for subcontractor/public roles. Please contact an ASMOE officer for details.
-                </div>
-              )}
-            </div>
 
-            {/* Authoritative Timeline */}
-            <div style={sectionStyle}>
-              <h4 style={sectionHeaderStyle}>⌛ Workflow Progress History</h4>
-              {timeline.length === 0 ? (
-                <div style={emptyTimelineStyle}>
-                  No active registration workflow history available for legacy/imported records.
+              {/* Location Section */}
+              <div style={sectionStyle}>
+                <h4 style={sectionHeaderStyle}>📍 Geographic Location</h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr",
+                    gap: "20px",
+                  }}
+                >
+                  <div>
+                    <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
+                      <strong>Address:</strong> {detail.address}
+                    </p>
+                    <p style={{ margin: "5px 0", color: "#cbd5e1" }}>
+                      <strong>Town/City:</strong> {detail.town || "Awka"}
+                    </p>
+                    <p style={{ margin: "5px 0", color: "#cbd5e1" }}>
+                      <strong>LGA Name:</strong> {detail.lga || "Awka South"}
+                    </p>
+                    <p
+                      style={{
+                        margin: "5px 0",
+                        color: "#94a3b8",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      <strong>GPS Coordinates:</strong>{" "}
+                      {detail.latitude.toFixed(6)},{" "}
+                      {detail.longitude.toFixed(6)}
+                    </p>
+                  </div>
+
+                  {/* Mock Map Coordinate Preview */}
+                  <div style={mockMapStyle}>
+                    <div style={mapGridStyle}>
+                      <div style={mapMarkerStyle} />
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        color: "#94a3b8",
+                        display: "block",
+                        textAlign: "center",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Anambra GIS Plot
+                    </span>
+                  </div>
                 </div>
-              ) : (
-                <div style={timelineContainerStyle}>
-                  {timeline.map((event, idx) => {
-                    const isExpanded = expandedStepId === event.eventId;
-                    return (
-                      <div key={event.eventId} style={timelineItemStyle}>
-                        <div style={timelineMarkerLineStyle}>
-                          <div
-                            style={{
-                              ...timelineBulletStyle,
-                              background: event.status === "completed" ? "#10b981" : event.status === "failed" ? "#ef4444" : "#f59e0b",
-                            }}
-                          />
-                          {idx < timeline.length - 1 && <div style={timelineVerticalConnectorStyle} />}
-                        </div>
-                        <div style={timelineContentCardStyle}>
-                          <div
-                            onClick={() => setExpandedStepId(isExpanded ? null : event.eventId)}
-                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-                          >
-                            <div>
-                              <strong style={{ color: "#f1f5f9" }}>{event.title}</strong>
-                              <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: "2px" }}>
-                                {event.summary}
-                              </div>
-                            </div>
-                            <span
+              </div>
+
+              {/* Contact Details Section */}
+              <div style={sectionStyle}>
+                <h4 style={sectionHeaderStyle}>📞 Contact Information</h4>
+                <div style={gridStyle}>
+                  <div>
+                    <div style={labelStyle}>Contact Representative</div>
+                    <div style={valueStyle}>
+                      {redact(detail.contactPerson, "name")}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Contact Email</div>
+                    <div style={valueStyle}>
+                      {redact(detail.contactEmail, "email")}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Contact Phone</div>
+                    <div style={valueStyle}>
+                      {redact(detail.contactPhone, "phone")}
+                    </div>
+                  </div>
+                </div>
+                {!isOfficer && (
+                  <div style={redactedWarningStyle}>
+                    💡 Contact fields are redacted for subcontractor/public
+                    roles. Please contact an ASMOE officer for details.
+                  </div>
+                )}
+              </div>
+
+              <div style={sectionStyle}>
+                <h4 style={sectionHeaderStyle}>
+                  Environmental operations profile
+                </h4>
+                <div style={gridStyle}>
+                  {[
+                    [
+                      "Nature of Operations",
+                      detail.category.replace(/_/g, " "),
+                    ],
+                    ["Production Capacity", "No production record"],
+                    ["Number of Employees", "No production record"],
+                    ["Operating Hours", "No production record"],
+                    ["Waste Generated", "No production record"],
+                    ["Hazardous Materials", "No production record"],
+                    ["Operational Status", detail.registrationStatus],
+                    ["Registration Remarks", "No remarks supplied"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div style={labelStyle}>{label}</div>
+                      <div style={valueStyle}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Authoritative Timeline */}
+              <div style={sectionStyle}>
+                <h4 style={sectionHeaderStyle}>⌛ Workflow Progress History</h4>
+                {timeline.length === 0 ? (
+                  <div style={emptyTimelineStyle}>
+                    No active registration workflow history available for
+                    legacy/imported records.
+                  </div>
+                ) : (
+                  <div style={timelineContainerStyle}>
+                    {timeline.map((event, idx) => {
+                      const isExpanded = expandedStepId === event.eventId;
+                      return (
+                        <div key={event.eventId} style={timelineItemStyle}>
+                          <div style={timelineMarkerLineStyle}>
+                            <div
                               style={{
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontSize: "0.7rem",
-                                fontWeight: "bold",
+                                ...timelineBulletStyle,
                                 background:
                                   event.status === "completed"
-                                    ? "rgba(16, 185, 129, 0.15)"
+                                    ? "#10b981"
                                     : event.status === "failed"
-                                      ? "rgba(239, 68, 68, 0.15)"
-                                      : "rgba(245, 158, 11, 0.15)",
-                                color:
-                                  event.status === "completed"
-                                    ? "#a7f3d0"
-                                    : event.status === "failed"
-                                      ? "#fca5a5"
-                                      : "#fde047",
+                                      ? "#ef4444"
+                                      : "#f59e0b",
+                              }}
+                            />
+                            {idx < timeline.length - 1 && (
+                              <div style={timelineVerticalConnectorStyle} />
+                            )}
+                          </div>
+                          <div style={timelineContentCardStyle}>
+                            <div
+                              onClick={() =>
+                                setExpandedStepId(
+                                  isExpanded ? null : event.eventId,
+                                )
+                              }
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                cursor: "pointer",
                               }}
                             >
-                              {event.status.toUpperCase()}
-                            </span>
-                          </div>
-
-                          {isExpanded && (
-                            <div style={timelineExpandedDetailStyle}>
-                              <div><strong>Occurred At:</strong> {new Date(event.occurredAt).toLocaleString()}</div>
-                              <div><strong>Actor Type:</strong> {event.actorType.toUpperCase()}</div>
-                              {event.metadata && (
-                                <div style={{ background: "#0f172a", padding: "8px", borderRadius: "4px", marginTop: "8px" }}>
-                                  <pre style={{ margin: 0, overflowX: "auto", fontSize: "0.75rem", color: "#38bdf8" }}>
-                                    {JSON.stringify(event.metadata, null, 2)}
-                                  </pre>
+                              <div>
+                                <strong style={{ color: "#f1f5f9" }}>
+                                  {event.title}
+                                </strong>
+                                <div
+                                  style={{
+                                    fontSize: "0.8rem",
+                                    color: "#94a3b8",
+                                    marginTop: "2px",
+                                  }}
+                                >
+                                  {event.summary}
                                 </div>
-                              )}
+                              </div>
+                              <span
+                                style={{
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  fontSize: "0.7rem",
+                                  fontWeight: "bold",
+                                  background:
+                                    event.status === "completed"
+                                      ? "rgba(16, 185, 129, 0.15)"
+                                      : event.status === "failed"
+                                        ? "rgba(239, 68, 68, 0.15)"
+                                        : "rgba(245, 158, 11, 0.15)",
+                                  color:
+                                    event.status === "completed"
+                                      ? "#a7f3d0"
+                                      : event.status === "failed"
+                                        ? "#fca5a5"
+                                        : "#fde047",
+                                }}
+                              >
+                                {event.status.toUpperCase()}
+                              </span>
                             </div>
-                          )}
+
+                            {isExpanded && (
+                              <div style={timelineExpandedDetailStyle}>
+                                <div>
+                                  <strong>Occurred At:</strong>{" "}
+                                  {new Date(event.occurredAt).toLocaleString()}
+                                </div>
+                                <div>
+                                  <strong>Actor Type:</strong>{" "}
+                                  {event.actorType.toUpperCase()}
+                                </div>
+                                {event.metadata && (
+                                  <div
+                                    style={{
+                                      background: "#0f172a",
+                                      padding: "8px",
+                                      borderRadius: "4px",
+                                      marginTop: "8px",
+                                    }}
+                                  >
+                                    <pre
+                                      style={{
+                                        margin: 0,
+                                        overflowX: "auto",
+                                        fontSize: "0.75rem",
+                                        color: "#38bdf8",
+                                      }}
+                                    >
+                                      {JSON.stringify(event.metadata, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
