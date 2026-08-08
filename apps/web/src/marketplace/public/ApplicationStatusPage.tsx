@@ -20,6 +20,7 @@ export function ApplicationStatusPage() {
   const [claimSubmitting, setClaimSubmitting] = useState(false);
   const [paymentProof, setPaymentProof] = useState({ transactionReference: "", paymentDate: "", payerName: "", amount: "" });
   const [receipt, setReceipt] = useState<File | null>(null);
+  const [onlinePaymentMessage, setOnlinePaymentMessage] = useState("");
 
   // Extract from canonical hash URL e.g. #/marketplace/status/:id.
   useEffect(() => {
@@ -101,6 +102,30 @@ export function ApplicationStatusPage() {
       await fetchStatus(appId, token);
     } catch (error: any) { setClaimMessage(error.message); }
     finally { setClaimSubmitting(false); }
+  };
+
+  const payOnline = async () => {
+    if (!statusData?.invoice) return;
+    setOnlinePaymentMessage("Opening secure Paystack checkout…");
+    const keyName = `pay1-${statusData.invoice.id}`;
+    const idempotencyKey = sessionStorage.getItem(keyName) || crypto.randomUUID();
+    sessionStorage.setItem(keyName, idempotencyKey);
+    try {
+      const response = await fetch(`${API_BASE_URL}/marketplace/invoices/${statusData.invoice.id}/payments/initialize`, {
+        method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ applicationId: appId, accessToken: token, expectedVersion: statusData.version }),
+      });
+      const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not initialize payment");
+      if (!result.authorizationUrl) throw new Error("Payment initialization is still processing. Please retry shortly.");
+      window.location.assign(result.authorizationUrl);
+    } catch (error: any) { setOnlinePaymentMessage(error.message); }
+  };
+
+  const printReceipt = async (paymentId: string) => {
+    const response = await fetch(`${API_BASE_URL}/marketplace/payments/${paymentId}/receipt`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken: token }) });
+    const result = await response.json(); if (!response.ok) return setOnlinePaymentMessage(result.error || "Receipt unavailable");
+    const receiptWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (receiptWindow) { const item=result.receipt; receiptWindow.document.write(`<title>Payment receipt</title><h1>GovOS Payment Receipt</h1><p>Invoice: ${item.invoiceNumber}</p><p>Business: ${item.businessName}</p><p>Reference: ${item.reference}</p><p>Amount: ${(Number(item.amountMicrounits)/1_000_000).toFixed(2)} ${item.currency}</p><p>Status: ${item.status}</p><p>Paid: ${new Date(item.paidAt).toLocaleString()}</p>`); receiptWindow.document.close(); receiptWindow.print(); }
   };
 
   const getStatusBadgeStyle = (status: string) => {
@@ -216,7 +241,7 @@ export function ApplicationStatusPage() {
             {statusData.invoice && (
               <section aria-labelledby="invoice-heading" style={{ background: "#0f172a", border: "1px solid #0ea5e9", borderRadius: "10px", padding: "20px", marginBottom: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
-                  <h2 id="invoice-heading" style={{ margin: 0, fontSize: "18px" }}>Bank Transfer Invoice</h2>
+                  <h2 id="invoice-heading" style={{ margin: 0, fontSize: "18px" }}>Subcontractor Registration Fee</h2>
                   <strong style={{ color: statusData.invoice.claimStatus === "confirmed" ? "#34d399" : statusData.invoice.claimStatus === "rejected" ? "#f87171" : "#fbbf24" }}>
                     {statusData.invoice.claimStatus === "confirmed" ? "Payment Confirmed" : statusData.invoice.claimStatus === "rejected" ? "Rejected" : statusData.invoice.claimStatus ? "Awaiting Verification" : "Bank Transfer"}
                   </strong>
@@ -231,6 +256,12 @@ export function ApplicationStatusPage() {
                   <dt>Payment reference</dt><dd style={{ margin: 0 }}>{statusData.invoice.paymentReference}</dd>
                   <dt>Payment status</dt><dd style={{ margin: 0 }}>{statusData.invoice.status}</dd>
                 </dl>
+                {statusData.invoice.status !== "paid" && (
+                  <button type="button" onClick={payOnline} style={{ width: "100%", padding: "12px", marginBottom: "16px", background: "#22c55e", color: "#052e16", border: 0, borderRadius: "6px", fontWeight: 800 }}>Pay securely with Paystack</button>
+                )}
+                {onlinePaymentMessage && <p role="status">{onlinePaymentMessage}</p>}
+                {statusData.payments?.length > 0 && <div><h3>Payment history</h3>{statusData.payments.map((payment:any)=><div key={payment.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #334155"}}><span>{payment.provider} · {payment.reference}</span><span>{payment.status} {payment.status==="paid"&&<button type="button" onClick={()=>printReceipt(payment.id)}>Print receipt</button>}</span></div>)}</div>}
+                <details style={{ marginTop: "16px" }}><summary>Pay by bank transfer instead</summary>
                 {!statusData.invoice.claimStatus || statusData.invoice.claimStatus === "rejected" ? (
                   <form onSubmit={submitPaymentProof} style={{ display: "grid", gap: "10px" }}>
                     <label>Transaction reference<input required value={paymentProof.transactionReference} onChange={e => setPaymentProof({...paymentProof, transactionReference: e.target.value})} style={{ display: "block", width: "100%", padding: "9px" }} /></label>
@@ -241,6 +272,7 @@ export function ApplicationStatusPage() {
                     <button disabled={claimSubmitting} type="submit" style={{ padding: "11px", background: "#0ea5e9", border: 0, borderRadius: "6px", fontWeight: 700 }}>{claimSubmitting ? "Submitting…" : "Submit Payment Proof"}</button>
                   </form>
                 ) : null}
+                </details>
                 {statusData.invoice.rejectionReason && <p style={{ color: "#fca5a5" }}>Reason: {statusData.invoice.rejectionReason}</p>}
                 {claimMessage && <p role="status">{claimMessage}</p>}
                 <p style={{ color: "#94a3b8", fontSize: "12px" }}><strong>Test Mode:</strong> simulated provider transactions remain available for guided demonstrations only.</p>

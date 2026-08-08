@@ -17,6 +17,10 @@ describe("Subcontractor Payment Integration Tests (PA-4 Phase 4)", () => {
   let app: any;
 
   beforeAll(async () => {
+    process.env.APP_ENV = "test";
+    process.env.PAYMENTS_DEMO_ENABLED = "true";
+    process.env.PAYMENTS_DEMO_TOKEN = "pay2r-test-demo-token";
+    process.env.WEBHOOK_SECRET = webhookSecret;
     pool = new Pool({ connectionString });
     const env = await setupTestEnvironment(pool);
     app = env.app;

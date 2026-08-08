@@ -116,7 +116,7 @@ export class MarketplacePaymentReconciliationService {
 
   private async handleCheckoutCompleted(
     webhookEventId: string,
-    _provider: string,
+    provider: string,
     checkoutSessionId: string,
     payload: WebhookEventPayload,
     startOverall: number,
@@ -125,8 +125,8 @@ export class MarketplacePaymentReconciliationService {
     const startReconcile = Date.now();
 
     const paymentQuery = await this.pool.query(
-      "SELECT * FROM marketplace_payment WHERE provider_checkout_reference = $1",
-      [checkoutSessionId]
+      "SELECT * FROM marketplace_payment WHERE provider_checkout_reference = $1 AND provider = $2",
+      [checkoutSessionId, provider]
     );
     if (paymentQuery.rows.length === 0) {
       await this.pool.query(
@@ -264,7 +264,7 @@ export class MarketplacePaymentReconciliationService {
 
   private async handleRefund(
     webhookEventId: string,
-    _provider: string,
+    provider: string,
     checkoutSessionId: string,
     txRef: string,
     _payload: WebhookEventPayload,
@@ -274,8 +274,8 @@ export class MarketplacePaymentReconciliationService {
     const startReconcile = Date.now();
 
     const paymentQuery = await this.pool.query(
-      "SELECT * FROM marketplace_payment WHERE provider_transaction_reference = $1 OR provider_checkout_reference = $2",
-      [txRef, checkoutSessionId]
+      "SELECT * FROM marketplace_payment WHERE provider = $1 AND (provider_transaction_reference = $2 OR provider_checkout_reference = $3)",
+      [provider, txRef, checkoutSessionId]
     );
     if (paymentQuery.rows.length === 0) {
       await this.pool.query(

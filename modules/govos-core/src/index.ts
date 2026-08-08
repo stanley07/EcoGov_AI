@@ -31,6 +31,7 @@ export * from "./marketplace/SubmissionService.js";
 export * from "./marketplace/screening-contracts.js";
 export * from "./marketplace/screening-handler.js";
 export * from "./marketplace/PaymentReconciliationService.js";
+export * from "./marketplace/PaystackRegistrationPaymentService.js";
 export * from "./marketplace/AssignmentService.js";
 export * from "./marketplace/PerformanceScoringPolicy.js";
 export * from "./marketplace/PerformanceScorecardService.js";

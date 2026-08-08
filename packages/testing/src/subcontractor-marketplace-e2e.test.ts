@@ -15,6 +15,10 @@ describe("Subcontractor Onboarding & Monetization E2E System Boundary Tests", ()
   let officerUserId: string;
 
   beforeAll(async () => {
+    process.env.APP_ENV = "test";
+    process.env.PAYMENTS_DEMO_ENABLED = "true";
+    process.env.PAYMENTS_DEMO_TOKEN = "pay2r-test-demo-token";
+    process.env.WEBHOOK_SECRET = webhookSecret;
     pool = new Pool({ connectionString });
     const env = await setupTestEnvironment(pool);
     app = env.app;

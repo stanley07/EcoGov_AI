@@ -152,12 +152,12 @@ export class LicenceIssuanceService {
       if (payment.invoice_id !== invoiceId) {
         throw new Error("PREREQUISITE_FAILED: Payment is not mapped to this invoice");
       }
-      if (payment.status !== "succeeded") {
+      if (!["succeeded", "paid"].includes(payment.status)) {
         throw new Error(`PREREQUISITE_FAILED: Payment is in invalid state: '${payment.status}'`);
       }
 
       // Check 9: Verify provider is supported (e.g. stripe)
-      if (!["stripe"].includes(payment.provider)) {
+      if (!["stripe", "paystack", "bank_transfer"].includes(payment.provider)) {
         throw new Error(`PREREQUISITE_FAILED: Invalid payment provider '${payment.provider}'`);
       }
 

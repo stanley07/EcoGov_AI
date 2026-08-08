@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { Pool } from "pg";
 import crypto from "node:crypto";
+import { PassThrough } from "node:stream";
 import { 
   AccessTokenService, 
   MockMarketplaceDocumentStore, 
@@ -14,6 +15,8 @@ import {
   AuditService,
   SubcontractorFacilityRegistrationService,
   MarketplaceAnalyticsService
+  ,PaystackPaymentProvider
+  ,PaystackRegistrationPaymentService
 } from "@govos/core";
 
 export async function marketplaceRoutes(app: FastifyInstance, options: { pool: Pool }) {
@@ -23,6 +26,16 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
   const reconciliationService = new MarketplacePaymentReconciliationService(pool);
   const facilityRegistrationService = new SubcontractorFacilityRegistrationService(pool);
   const analyticsService = new MarketplaceAnalyticsService(pool);
+  const paystackService = process.env.PAYSTACK_SECRET_KEY && process.env.PAYSTACK_CALLBACK_URL
+    ? new PaystackRegistrationPaymentService(pool, new PaystackPaymentProvider(
+        process.env.PAYSTACK_SECRET_KEY,
+        process.env.PAYSTACK_ENVIRONMENT === "live" ? "live" : "test",
+      ), process.env.PAYSTACK_CALLBACK_URL)
+    : null;
+  const appEnvironment = process.env.APP_ENV || "local";
+  const demoPaymentsEnabled = ["local", "test"].includes(appEnvironment) && process.env.PAYMENTS_DEMO_ENABLED === "true";
+  const configuredDemoToken = process.env.PAYMENTS_DEMO_TOKEN || "";
+  const configuredLegacyWebhookSecret = process.env.WEBHOOK_SECRET || "";
 
   // Helper function to return generic unauthorized errors
   const sendGenericUnauthorized = (reply: any) => {
@@ -263,6 +276,11 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
        ORDER BY i.created_at DESC LIMIT 1`,
       [appRow.tenant_id, id]
     );
+    const paymentsRes = await pool.query(
+      `SELECT p.id, p.provider, p.provider_checkout_reference AS "reference", p.amount_paid_microunits AS "amountMicrounits",
+              p.currency, p.status, p.payment_channel AS "channel", p.paid_at AS "paidAt", p.created_at AS "createdAt"
+       FROM marketplace_payment p JOIN marketplace_invoice i ON i.tenant_id=p.tenant_id AND i.id=p.invoice_id
+       WHERE p.tenant_id=$1 AND i.application_id=$2 ORDER BY p.created_at DESC`, [appRow.tenant_id, id]);
 
     return reply.send({
       applicationId: appRow.id,
@@ -274,6 +292,7 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
       subcontractorId: licenceRow ? licenceRow.subcontractorId : null,
       licenceCode: licenceRow ? licenceRow.licenceCode : null,
       invoice: invoiceRes.rows[0] || null,
+      payments: paymentsRes.rows,
     });
   });
 
@@ -591,7 +610,7 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
     }
   });
 
-  // 10. Create Checkout Session
+  // 10. Compatibility checkout route delegates to the canonical PAY-1 service.
   app.post("/marketplace/applications/:id/checkout-session", async (req, reply) => {
     reply.header("Cache-Control", "no-store");
     const { id } = req.params as { id: string };
@@ -601,83 +620,67 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
       return reply.status(400).send({ error: "Access token is required" });
     }
 
-    const appQuery = await pool.query(
-      "SELECT * FROM subcontractor_application WHERE id = $1",
-      [id]
-    );
-    if (appQuery.rows.length === 0) {
-      return sendGenericUnauthorized(reply);
+    if (!paystackService) {
+      if (!demoPaymentsEnabled) return reply.status(503).send({ error: "Online payments are not configured" });
+      // Backward-compatible local/demo behavior; production environments configure Paystack.
+      const appResult=await pool.query(`SELECT * FROM subcontractor_application WHERE id=$1`,[id]);
+      if(!appResult.rows.length||!AccessTokenService.timingSafeCompare(appResult.rows[0].access_token_hash,AccessTokenService.hashToken(accessToken))) return sendGenericUnauthorized(reply);
+      const application=appResult.rows[0]; if(Number(application.version)!==Number(expectedVersion)) return reply.status(409).send({error:"Version mismatch conflict"});
+      const invoiceResult=await pool.query(`SELECT * FROM marketplace_invoice WHERE tenant_id=$1 AND application_id=$2 AND status IN ('unpaid','pending') ORDER BY created_at DESC LIMIT 1`,[application.tenant_id,id]);
+      if(!invoiceResult.rows.length) return reply.status(400).send({error:"No unpaid invoice found for this application"}); const invoice=invoiceResult.rows[0];
+      const existing=await pool.query(`SELECT * FROM marketplace_payment WHERE tenant_id=$1 AND invoice_id=$2 AND status IN ('created','pending') ORDER BY created_at DESC LIMIT 1`,[application.tenant_id,invoice.id]);
+      if(existing.rows.length) return reply.send({checkoutSessionId:existing.rows[0].provider_checkout_reference,redirectUrl:`/marketplace/checkout/${existing.rows[0].id}`,paymentId:existing.rows[0].id});
+      const paymentId=crypto.randomUUID(), reference=`CS_${crypto.randomUUID()}`;
+      await pool.query(`INSERT INTO marketplace_payment(id,tenant_id,invoice_id,provider,provider_checkout_reference,amount_paid_microunits,currency,status) VALUES($1,$2,$3,'stripe',$4,$5,$6,'created')`,[paymentId,application.tenant_id,invoice.id,reference,invoice.amount_due_microunits,invoice.currency]);
+      await pool.query(`UPDATE subcontractor_application SET status='payment_pending',version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id=$2 AND status='invoice_pending'`,[application.tenant_id,id]);
+      return reply.send({checkoutSessionId:reference,redirectUrl:`/marketplace/checkout/${paymentId}`,paymentId});
     }
-    const appRow = appQuery.rows[0];
-    const clientHash = AccessTokenService.hashToken(accessToken);
-    if (!AccessTokenService.timingSafeCompare(appRow.access_token_hash, clientHash)) {
-      return sendGenericUnauthorized(reply);
-    }
-
-    if (Number(appRow.version) !== Number(expectedVersion)) {
-      return reply.status(409).send({ error: "Version mismatch conflict" });
-    }
-
-    if (appRow.status !== "invoice_pending" && appRow.status !== "payment_pending") {
-      return reply.status(400).send({ error: "Application is not in invoice_pending or payment_pending state" });
-    }
-
-    const invoiceQuery = await pool.query(
-      "SELECT * FROM marketplace_invoice WHERE application_id = $1 AND status = 'unpaid'",
-      [id]
-    );
-    if (invoiceQuery.rows.length === 0) {
-      return reply.status(400).send({ error: "No unpaid invoice found for this application" });
-    }
-    const invoice = invoiceQuery.rows[0];
-
-    const existingPaymentQuery = await pool.query(
-      "SELECT * FROM marketplace_payment WHERE invoice_id = $1 AND status IN ('created', 'pending')",
-      [invoice.id]
-    );
-    if (existingPaymentQuery.rows.length > 0) {
-      const existingPayment = existingPaymentQuery.rows[0];
-      return reply.send({
-        checkoutSessionId: existingPayment.provider_checkout_reference,
-        redirectUrl: `/marketplace/checkout/${existingPayment.id}`,
-        paymentId: existingPayment.id
-      });
-    }
-
-    const client = await pool.connect();
     try {
-      await client.query("BEGIN");
-
-      if (appRow.status === "invoice_pending") {
-        await client.query(
-          "UPDATE subcontractor_application SET status = 'payment_pending', version = version + 1, updated_at = NOW() WHERE id = $1",
-          [id]
-        );
-      }
-
-      const paymentId = crypto.randomUUID();
-      const checkoutRef = `CS_${crypto.randomUUID()}`;
-      
-      await client.query(
-        `INSERT INTO marketplace_payment (
-          id, tenant_id, invoice_id, provider, provider_checkout_reference, provider_transaction_reference, amount_paid_microunits, currency, status
-        ) VALUES ($1, $2, $3, 'stripe', $4, null, $5, $6, 'created')`,
-        [paymentId, appRow.tenant_id, invoice.id, checkoutRef, invoice.amount_due_microunits, invoice.currency]
-      );
-
-      await client.query("COMMIT");
-
-      return reply.send({
-        checkoutSessionId: checkoutRef,
-        redirectUrl: `/marketplace/checkout/${paymentId}`,
-        paymentId: paymentId
-      });
+      const result = await paystackService.initialize({ applicationId: id, accessTokenHash: AccessTokenService.hashToken(accessToken), expectedVersion,
+        idempotencyKey: String(req.headers["idempotency-key"] || "") });
+      return reply.send({ ...result, checkoutSessionId: result.reference, redirectUrl: result.authorizationUrl });
     } catch (err: any) {
-      await client.query("ROLLBACK");
-      return reply.status(500).send({ error: err.message });
-    } finally {
-      client.release();
+      if (err.message === "UNAUTHORIZED") return sendGenericUnauthorized(reply);
+      if (["VERSION_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(err.message)) return reply.status(409).send({ error: err.message });
+      return reply.status(400).send({ error: err.message });
     }
+  });
+
+  app.post("/marketplace/invoices/:invoiceId/payments/initialize", async (req, reply) => {
+    const { invoiceId } = req.params as { invoiceId: string }; const body = req.body as any;
+    const owner = await pool.query(`SELECT application_id FROM marketplace_invoice WHERE id=$1`, [invoiceId]);
+    if (!owner.rows.length || owner.rows[0].application_id !== body.applicationId) return sendGenericUnauthorized(reply);
+    if (!paystackService) return reply.status(503).send({ error: "Online payments are not configured" });
+    try { return reply.send(await paystackService.initialize({ applicationId: body.applicationId, accessTokenHash: AccessTokenService.hashToken(body.accessToken || ""),
+      expectedVersion: body.expectedVersion, idempotencyKey: String(req.headers["idempotency-key"] || "") }));
+    } catch (err:any) { if(err.message==="UNAUTHORIZED") return sendGenericUnauthorized(reply); return reply.status(err.message.includes("CONFLICT") ? 409 : 400).send({error:err.message}); }
+  });
+
+  app.post("/marketplace/payments/webhooks/paystack", {
+    preParsing: (req: any, _reply: any, payload: any, done: any) => {
+      const chunks: Buffer[]=[]; const stream=new PassThrough();
+      payload.on("data",(chunk: Buffer|string)=>chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk)));
+      payload.on("end",()=>{req.paystackRawBody=Buffer.concat(chunks);}); payload.pipe(stream); done(null,stream);
+    }
+  }, async (req:any, reply) => {
+    if (!paystackService) return reply.status(503).send({ error: "Online payments are not configured" });
+    try { const result=await paystackService.processWebhook(req.paystackRawBody, String(req.headers["x-paystack-signature"]||"")); return reply.send(result); }
+    catch(err:any) { return reply.status(err.message==="UNAUTHORIZED_SIGNATURE"?401:400).send({error:err.message}); }
+  });
+
+  app.post("/marketplace/payments/:paymentId/receipt", async(req,reply)=>{
+    const {paymentId}=req.params as any; const body=req.body as any;
+    const result=await pool.query(`SELECT p.id,p.provider,p.provider_checkout_reference AS reference,p.amount_paid_microunits AS "amountMicrounits",p.currency,p.status,p.payment_channel AS channel,p.paid_at AS "paidAt",i.invoice_number AS "invoiceNumber",i.description,a.id AS "applicationId",a.business_name AS "businessName",a.access_token_hash
+      FROM marketplace_payment p JOIN marketplace_invoice i ON i.tenant_id=p.tenant_id AND i.id=p.invoice_id JOIN subcontractor_application a ON a.tenant_id=i.tenant_id AND a.id=i.application_id WHERE p.id=$1`,[paymentId]);
+    if(!result.rows.length||!AccessTokenService.timingSafeCompare(result.rows[0].access_token_hash,AccessTokenService.hashToken(body.accessToken||""))) return sendGenericUnauthorized(reply);
+    const {access_token_hash,...receipt}=result.rows[0]; return reply.send({receipt});
+  });
+
+  app.get("/officer/marketplace/payments", async(req,reply)=>{
+    const officer=await authenticateOfficer(req,reply,pool); if(!officer)return;
+    if(!(await hasMarketplacePaymentVerificationPermission(officer.userId,officer.tenantId))) return reply.status(403).send({error:"Forbidden"});
+    const rows=await pool.query(`SELECT p.id,p.provider,p.provider_checkout_reference AS reference,p.amount_paid_microunits AS "amountMicrounits",p.currency,p.status,p.payment_channel AS channel,p.paid_at AS "paidAt",i.invoice_number AS "invoiceNumber",a.business_name AS "businessName" FROM marketplace_payment p JOIN marketplace_invoice i ON i.tenant_id=p.tenant_id AND i.id=p.invoice_id JOIN subcontractor_application a ON a.tenant_id=i.tenant_id AND a.id=i.application_id WHERE p.tenant_id=$1 ORDER BY p.created_at DESC LIMIT 250`,[officer.tenantId]);
+    return reply.send({payments:rows.rows});
   });
 
   // Applicant: submit a bank-transfer receipt and immutable invoice claim.
@@ -826,6 +829,10 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
   // Demo webhook bypass for guided presentation
   app.post("/marketplace/payments/demo-complete", async (req, reply) => {
     reply.header("Cache-Control", "no-store");
+    if (!demoPaymentsEnabled || !configuredDemoToken) return reply.status(404).send({ error: "Not found" });
+    const suppliedDemoToken = String(req.headers["x-demo-payment-token"] || "");
+    const expectedToken = Buffer.from(configuredDemoToken); const suppliedToken = Buffer.from(suppliedDemoToken);
+    if (expectedToken.length !== suppliedToken.length || !crypto.timingSafeEqual(expectedToken, suppliedToken)) return reply.status(401).send({ error: "Unauthorized" });
     const { checkoutSessionId } = req.body as { checkoutSessionId: string };
     if (!checkoutSessionId) {
       return reply.status(400).send({ error: "Missing checkoutSessionId" });
@@ -851,7 +858,8 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
         currency: String(paymentQuery.rows[0].currency).toLowerCase()
       };
       const rawBody = JSON.stringify(webhookPayload);
-      const secret = process.env.WEBHOOK_SECRET || "mock-secret-key";
+      if (!configuredLegacyWebhookSecret) return reply.status(503).send({ error: "Legacy webhook is not configured" });
+      const secret = configuredLegacyWebhookSecret;
 
       const hmac = crypto.createHmac("sha256", secret);
       hmac.update(rawBody);
@@ -874,9 +882,11 @@ export async function marketplaceRoutes(app: FastifyInstance, options: { pool: P
   // 11. Payment Provider Webhooks
   app.post("/marketplace/payments/webhooks/:provider", async (req, reply) => {
     const { provider } = req.params as { provider: string };
+    if (!['stripe', 'bank_transfer'].includes(provider)) return reply.status(404).send({ error: "Provider not supported" });
+    if (!configuredLegacyWebhookSecret) return reply.status(503).send({ error: "Legacy webhook is not configured" });
     const signature = req.headers["x-webhook-signature"] as string;
     const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
-    const secret = process.env.WEBHOOK_SECRET || "mock-secret-key";
+    const secret = configuredLegacyWebhookSecret;
     const bodyObj = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
     try {
